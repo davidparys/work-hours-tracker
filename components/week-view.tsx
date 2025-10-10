@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { ChevronLeft, ChevronRight, Calendar } from "lucide-react"
 import { db } from "@/lib/database"
-import { getWeekDates, formatHours, getActivityLevel } from "@/lib/utils/date-helpers"
+import { getWeekDates, formatHours, getActivityLevel, getWeekDayHeaders } from "@/lib/utils/date-helpers"
 import { cn } from "@/lib/utils"
 import { BulkEntryDialog } from "./bulk-entry-dialog"
 
@@ -20,15 +20,31 @@ export function WeekView({ selectedDate, onDateChange, onDayClick }: WeekViewPro
   const [weeklyData, setWeeklyData] = useState<{ [date: string]: number }>({})
   const [projects, setProjects] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [companySettings, setCompanySettings] = useState<any>(null)
 
-  const weekDates = getWeekDates(selectedDate)
+  const weekDates = getWeekDates(selectedDate, companySettings?.weekStartsOn || 'sunday')
   const totalWeekHours = Object.values(weeklyData).reduce((sum, hours) => sum + hours, 0)
 
   useEffect(() => {
+    loadCompanySettings()
+  }, [])
+
+  useEffect(() => {
     loadWeekData()
-  }, [selectedDate])
+  }, [selectedDate, companySettings])
+
+  const loadCompanySettings = async () => {
+    try {
+      const settings = await db.getCompanySettings()
+      setCompanySettings(settings)
+    } catch (error) {
+      console.error("Failed to load company settings:", error)
+    }
+  }
 
   const loadWeekData = async () => {
+    if (!companySettings) return
+    
     setIsLoading(true)
     try {
       const [data, projectList] = await Promise.all([
@@ -77,8 +93,12 @@ export function WeekView({ selectedDate, onDateChange, onDayClick }: WeekViewPro
   }
 
   const isToday = (dateString: string): boolean => {
-    const today = new Date().toISOString().split("T")[0]
-    return dateString === today
+    const today = new Date()
+    const year = today.getFullYear()
+    const month = String(today.getMonth() + 1).padStart(2, '0')
+    const day = String(today.getDate()).padStart(2, '0')
+    const todayString = `${year}-${month}-${day}`
+    return dateString === todayString
   }
 
   return (
@@ -128,6 +148,15 @@ export function WeekView({ selectedDate, onDateChange, onDayClick }: WeekViewPro
           </div>
         </CardHeader>
         <CardContent>
+          {/* Day Headers */}
+          <div className="grid grid-cols-7 gap-3 mb-3">
+            {getWeekDayHeaders(companySettings?.weekStartsOn || 'sunday').map((dayName) => (
+              <div key={dayName} className="text-center text-xs font-medium text-muted-foreground">
+                {dayName}
+              </div>
+            ))}
+          </div>
+          
           <div className="grid grid-cols-7 gap-3">
             {weekDates.dates.map((date) => {
               const hours = weeklyData[date] || 0

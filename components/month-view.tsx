@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { ChevronLeft, ChevronRight, Calendar } from "lucide-react"
 import { db } from "@/lib/database"
-import { getMonthDates, formatHours, getActivityLevel } from "@/lib/utils/date-helpers"
+import { getMonthDates, formatHours, getActivityLevel, getWeekDayHeaders } from "@/lib/utils/date-helpers"
 import { cn } from "@/lib/utils"
 import { BulkEntryDialog } from "./bulk-entry-dialog"
 
@@ -19,16 +19,32 @@ export function MonthView({ selectedDate, onDateChange, onDayClick }: MonthViewP
   const [monthlyData, setMonthlyData] = useState<{ [date: string]: number }>({})
   const [projects, setProjects] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [companySettings, setCompanySettings] = useState<any>(null)
 
   const monthDates = getMonthDates(selectedDate)
   const totalMonthHours = Object.values(monthlyData).reduce((sum, hours) => sum + hours, 0)
   const workingDays = Object.values(monthlyData).filter((hours) => hours > 0).length
 
   useEffect(() => {
+    loadCompanySettings()
+  }, [])
+
+  useEffect(() => {
     loadMonthData()
-  }, [selectedDate])
+  }, [selectedDate, companySettings])
+
+  const loadCompanySettings = async () => {
+    try {
+      const settings = await db.getCompanySettings()
+      setCompanySettings(settings)
+    } catch (error) {
+      console.error("Failed to load company settings:", error)
+    }
+  }
 
   const loadMonthData = async () => {
+    if (!companySettings) return
+    
     setIsLoading(true)
     try {
       const [data, projectList] = await Promise.all([
@@ -72,15 +88,34 @@ export function MonthView({ selectedDate, onDateChange, onDayClick }: MonthViewP
   }
 
   const getCalendarGrid = () => {
+    if (!companySettings) return []
+    
     const firstDay = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1)
     const lastDay = new Date(selectedDate.getFullYear(), selectedDate.getMonth() + 1, 0)
+    
+    // Map week start options to day numbers (0 = Sunday, 1 = Monday, etc.)
+    const weekStartMap = {
+      'saturday': 6,
+      'sunday': 0,
+      'monday': 1
+    }
+    
+    const weekStartDay = weekStartMap[companySettings.weekStartsOn]
     const startDate = new Date(firstDay)
-    startDate.setDate(startDate.getDate() - firstDay.getDay()) // Start from Sunday
+    const firstDayOfWeek = firstDay.getDay()
+    
+    // Calculate the difference, handling the case where we need to go to the previous week
+    let diff = firstDayOfWeek - weekStartDay
+    if (diff < 0) {
+      diff += 7
+    }
+    
+    startDate.setDate(startDate.getDate() - diff)
 
     const weeks = []
     const currentDate = new Date(startDate)
 
-    while (currentDate <= lastDay || currentDate.getDay() !== 0) {
+    while (currentDate <= lastDay || currentDate.getDay() !== weekStartDay) {
       const week = []
       for (let i = 0; i < 7; i++) {
         const dateString = currentDate.toISOString().split("T")[0]
@@ -99,7 +134,7 @@ export function MonthView({ selectedDate, onDateChange, onDayClick }: MonthViewP
       }
       weeks.push(week)
 
-      if (currentDate > lastDay && currentDate.getDay() === 0) break
+      if (currentDate > lastDay && currentDate.getDay() === weekStartDay) break
     }
 
     return weeks
@@ -154,7 +189,7 @@ export function MonthView({ selectedDate, onDateChange, onDayClick }: MonthViewP
         <CardContent>
           {/* Day Headers */}
           <div className="grid grid-cols-7 gap-1 mb-3">
-            {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
+            {getWeekDayHeaders(companySettings?.weekStartsOn || 'sunday').map((day) => (
               <div key={day} className="text-center text-xs font-medium text-muted-foreground py-2">
                 {day}
               </div>

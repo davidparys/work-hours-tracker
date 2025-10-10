@@ -158,13 +158,14 @@ export function BulkEntryDialog({ projects, onEntriesAdded, children }: BulkEntr
       while (currentDate <= finalDate) {
         if (currentDate.getDay() !== 0 && currentDate.getDay() !== 6) {
           for (const assignment of hourAssignments) {
-            if (assignment.hour < 24) {
+            // Only add entries for working hours that have a project assigned
+            if (isWorkingHour(assignment.hour) && assignment.project) {
               await db.addTimeEntry({
                 date: formatDate(currentDate),
                 start_hour: assignment.hour,
                 end_hour: assignment.hour + 1,
                 duration: 1,
-                project: assignment.project || undefined,
+                project: assignment.project,
                 description: assignment.description || undefined,
               })
             }
@@ -231,7 +232,13 @@ export function BulkEntryDialog({ projects, onEntriesAdded, children }: BulkEntr
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar mode="single" selected={startDate} onSelect={setStartDate} initialFocus />
+                  <Calendar 
+                    mode="single" 
+                    selected={startDate} 
+                    onSelect={setStartDate} 
+                    initialFocus 
+                    weekStartsOn={companySettings?.weekStartsOn === 'saturday' ? 6 : companySettings?.weekStartsOn === 'monday' ? 1 : 0}
+                  />
                 </PopoverContent>
               </Popover>
             </div>
@@ -249,7 +256,13 @@ export function BulkEntryDialog({ projects, onEntriesAdded, children }: BulkEntr
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar mode="single" selected={endDate} onSelect={setEndDate} initialFocus />
+                  <Calendar 
+                    mode="single" 
+                    selected={endDate} 
+                    onSelect={setEndDate} 
+                    initialFocus 
+                    weekStartsOn={companySettings?.weekStartsOn === 'saturday' ? 6 : companySettings?.weekStartsOn === 'monday' ? 1 : 0}
+                  />
                 </PopoverContent>
               </Popover>
             </div>

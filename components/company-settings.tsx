@@ -15,6 +15,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Clock, Building2, Calendar } from "lucide-react"
 import { getCompanySettings, saveCompanySettings } from "@/lib/database"
@@ -30,6 +31,7 @@ interface CompanySettings {
   workingDays: string[]
   companyName: string
   timezone: string
+  weekStartsOn: 'saturday' | 'sunday' | 'monday'
 }
 
 const DAYS_OF_WEEK = [
@@ -50,6 +52,7 @@ export function CompanySettings({ children, onSettingsChange }: CompanySettingsP
     workingDays: ["monday", "tuesday", "wednesday", "thursday", "friday"],
     companyName: "My Company",
     timezone: "UTC",
+    weekStartsOn: "monday",
   })
   const [isLoading, setIsLoading] = useState(false)
 
@@ -204,6 +207,42 @@ export function CompanySettings({ children, onSettingsChange }: CompanySettingsP
               <div className="text-xs text-muted-foreground bg-muted/50 p-3 rounded-md mt-4">
                 Selected: {settings.workingDays.length} days (
                 {settings.workingDays.map((day) => DAYS_OF_WEEK.find((d) => d.id === day)?.label).join(", ")})
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Week Start Setting */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium flex items-center gap-2">
+                <Calendar className="h-4 w-4" />
+                Week Starts On
+              </CardTitle>
+              <CardDescription className="text-xs">
+                Choose which day the week starts on for all calendar views.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                <Label htmlFor="weekStartsOn">First Day of Week</Label>
+                <Select
+                  value={settings.weekStartsOn || 'monday'}
+                  onValueChange={(value: 'saturday' | 'sunday' | 'monday') =>
+                    setSettings((prev) => ({ ...prev, weekStartsOn: value }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select week start day" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="saturday">Saturday</SelectItem>
+                    <SelectItem value="sunday">Sunday</SelectItem>
+                    <SelectItem value="monday">Monday</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="text-xs text-muted-foreground bg-muted/50 p-3 rounded-md mt-4">
+                Week will start on: {settings.weekStartsOn ? settings.weekStartsOn.charAt(0).toUpperCase() + settings.weekStartsOn.slice(1) : 'Monday'}
               </div>
             </CardContent>
           </Card>

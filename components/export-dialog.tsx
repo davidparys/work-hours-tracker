@@ -3,7 +3,7 @@
 import type React from "react"
 
 import { useState, useEffect } from "react"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
@@ -12,7 +12,7 @@ import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Badge } from "@/components/ui/badge"
 import { FileText, Download, CalendarIcon, Loader2 } from "lucide-react"
-import { db, type TimeEntry, type Project } from "@/lib/database"
+import { db, type TimeEntry, type Project, getUserSettings } from "@/lib/database"
 import { exportToPDF } from "@/lib/pdf-generator"
 import { formatDate, formatHours } from "@/lib/utils/date-helpers"
 import { cn } from "@/lib/utils"
@@ -30,6 +30,7 @@ export function ExportDialog({ children, defaultStartDate, defaultEndDate }: Exp
   const [endDate, setEndDate] = useState<Date>(defaultEndDate || new Date())
   const [exportStyle, setExportStyle] = useState<"professional" | "visual">("professional")
   const [includeActivityGrid, setIncludeActivityGrid] = useState(true)
+  const [showProjects, setShowProjects] = useState(false)
   const [entries, setEntries] = useState<TimeEntry[]>([])
   const [projects, setProjects] = useState<Project[]>([])
   const [previewData, setPreviewData] = useState<{
@@ -37,12 +38,34 @@ export function ExportDialog({ children, defaultStartDate, defaultEndDate }: Exp
     workingDays: number
     projectBreakdown: { [project: string]: number }
   } | null>(null)
+  const [companySettings, setCompanySettings] = useState<any>(null)
+  const [userSettings, setUserSettings] = useState<any>(null)
 
   useEffect(() => {
     if (isOpen) {
+      loadCompanySettings()
+      loadUserSettings()
       loadPreviewData()
     }
   }, [isOpen, startDate, endDate])
+
+  const loadCompanySettings = async () => {
+    try {
+      const settings = await db.getCompanySettings()
+      setCompanySettings(settings)
+    } catch (error) {
+      console.error("Failed to load company settings:", error)
+    }
+  }
+
+  const loadUserSettings = async () => {
+    try {
+      const settings = await getUserSettings()
+      setUserSettings(settings)
+    } catch (error) {
+      console.error("Failed to load user settings:", error)
+    }
+  }
 
   const loadPreviewData = async () => {
     try {
@@ -82,6 +105,16 @@ export function ExportDialog({ children, defaultStartDate, defaultEndDate }: Exp
         projects,
         style: exportStyle,
         includeActivityGrid,
+        showProjects,
+        weekStartsOn: companySettings?.weekStartsOn || 'sunday',
+        userSettings: userSettings ? {
+          firstName: userSettings.firstName,
+          lastName: userSettings.lastName,
+        } : undefined,
+        companySettings: companySettings ? {
+          companyName: companySettings.companyName,
+          timezone: companySettings.timezone,
+        } : undefined,
       })
       setIsOpen(false)
     } catch (error) {
@@ -107,6 +140,9 @@ export function ExportDialog({ children, defaultStartDate, defaultEndDate }: Exp
             <FileText className="h-5 w-5" />
             Export Time Report
           </DialogTitle>
+          <DialogDescription>
+            Select a date range and export your time tracking data as a PDF report.
+          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-6">
@@ -130,6 +166,7 @@ export function ExportDialog({ children, defaultStartDate, defaultEndDate }: Exp
                     selected={startDate}
                     onSelect={(date) => date && setStartDate(date)}
                     initialFocus
+                    weekStartsOn={companySettings?.weekStartsOn === 'saturday' ? 6 : companySettings?.weekStartsOn === 'monday' ? 1 : 0}
                   />
                 </PopoverContent>
               </Popover>
@@ -153,6 +190,7 @@ export function ExportDialog({ children, defaultStartDate, defaultEndDate }: Exp
                     selected={endDate}
                     onSelect={(date) => date && setEndDate(date)}
                     initialFocus
+                    weekStartsOn={companySettings?.weekStartsOn === 'saturday' ? 6 : companySettings?.weekStartsOn === 'monday' ? 1 : 0}
                   />
                 </PopoverContent>
               </Popover>
@@ -184,21 +222,48 @@ export function ExportDialog({ children, defaultStartDate, defaultEndDate }: Exp
           </div>
 
           {/* Options */}
-          {exportStyle === "visual" && (
+          <div className="space-y-3">
+            {exportStyle === "visual" && (
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="activity-grid"
+                  checked={includeActivityGrid}
+                  onCheckedChange={(checked) => setIncludeActivityGrid(checked as boolean)}
+                />
+                <Label htmlFor="activity-grid">Include activity grid visualization</Label>
+              </div>
+            )}
+            
             <div className="flex items-center space-x-2">
               <Checkbox
-                id="activity-grid"
-                checked={includeActivityGrid}
-                onCheckedChange={(checked) => setIncludeActivityGrid(checked as boolean)}
+                id="show-projects"
+                checked={showProjects}
+                onCheckedChange={(checked) => setShowProjects(checked as boolean)}
               />
-              <Label htmlFor="activity-grid">Include activity grid visualization</Label>
+              <Label htmlFor="show-projects">Show project breakdown per day</Label>
             </div>
-          )}
+          </div>
 
           {/* Preview */}
           {previewData && (
             <div className="border rounded-lg p-4 bg-muted/30">
               <h4 className="font-medium mb-3">Report Preview</h4>
+              
+              {/* Report Header Info */}
+              {(userSettings || companySettings) && (
+                <div className="mb-4 p-3 bg-background rounded border">
+                  <div className="text-sm font-medium mb-2">Report Header:</div>
+                  <div className="space-y-1 text-sm text-muted-foreground">
+                    {userSettings && (userSettings.firstName || userSettings.lastName) && (
+                      <div>Employee: {`${userSettings.firstName || ''} ${userSettings.lastName || ''}`.trim()}</div>
+                    )}
+                    {companySettings?.companyName && (
+                      <div>Company: {companySettings.companyName}</div>
+                    )}
+                  </div>
+                </div>
+              )}
+              
               <div className="grid grid-cols-3 gap-4 mb-4">
                 <div className="text-center">
                   <div className="text-2xl font-bold text-primary">{formatHours(previewData.totalHours)}</div>

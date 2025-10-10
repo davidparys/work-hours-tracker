@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label"
 import { Database, Download, Upload, Trash2, AlertTriangle } from "lucide-react"
 import { db } from "@/lib/database"
 import { formatHours } from "@/lib/utils/date-helpers"
+import { StorageStatus } from "./storage-status"
 
 interface DataManagerProps {
   children: React.ReactNode
@@ -141,8 +142,7 @@ export function DataManager({ children, onDataChange }: DataManagerProps) {
     }
 
     try {
-      // Note: In a real implementation, you'd have proper delete methods
-      // For now, we'll just reset the in-memory storage
+      await db.clearAllData()
       alert("All data has been cleared")
       onDataChange?.()
       await loadStats()
@@ -171,6 +171,9 @@ export function DataManager({ children, onDataChange }: DataManagerProps) {
         </DialogHeader>
 
         <div className="space-y-6">
+          {/* Storage Status */}
+          <StorageStatus />
+
           {/* Statistics */}
           {stats && (
             <Card>

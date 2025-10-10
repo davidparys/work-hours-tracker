@@ -8,6 +8,7 @@ import { ExportDialog } from "@/components/export-dialog"
 import { ProjectManager } from "@/components/project-manager"
 import { DataManager } from "@/components/data-manager"
 import { CompanySettings } from "@/components/company-settings"
+import { PersonalSettings } from "@/components/personal-settings"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -16,7 +17,7 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu"
-import { Calendar, BarChart3, FileText, Settings, Database, Palette, Building2 } from "lucide-react"
+import { Calendar, BarChart3, FileText, Settings, Database, Palette, Building2, User } from "lucide-react"
 import { getWeekDates, getMonthDates } from "@/lib/utils/date-helpers"
 
 export default function HomePage() {
@@ -118,6 +119,12 @@ export default function HomePage() {
                     </DropdownMenuItem>
                   </ProjectManager>
                   <DropdownMenuSeparator />
+                  <PersonalSettings onSettingsChange={handleDataChange}>
+                    <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                      <User className="h-4 w-4 mr-2" />
+                      Personal Details
+                    </DropdownMenuItem>
+                  </PersonalSettings>
                   <CompanySettings onSettingsChange={handleDataChange}>
                     <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
                       <Building2 className="h-4 w-4 mr-2" />
