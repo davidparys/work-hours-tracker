@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { User } from "lucide-react"
 import { getUserSettings, saveUserSettings } from "@/lib/database"
@@ -26,13 +27,40 @@ interface PersonalSettingsProps {
 interface UserSettings {
   firstName: string
   lastName: string
+  defaultBillableRate?: number
+  currency: string
 }
+
+const CURRENCIES = [
+  { code: 'USD', symbol: '$', name: 'US Dollar' },
+  { code: 'EUR', symbol: '€', name: 'Euro' },
+  { code: 'GBP', symbol: '£', name: 'British Pound' },
+  { code: 'CAD', symbol: 'C$', name: 'Canadian Dollar' },
+  { code: 'AUD', symbol: 'A$', name: 'Australian Dollar' },
+  { code: 'CHF', symbol: 'Fr', name: 'Swiss Franc' },
+  { code: 'PLN', symbol: 'zł', name: 'Polish Złoty' },
+  { code: 'CZK', symbol: 'Kč', name: 'Czech Koruna' },
+  { code: 'HUF', symbol: 'Ft', name: 'Hungarian Forint' },
+  { code: 'ILS', symbol: '₪', name: 'Israeli New Shekel' },
+  { code: 'JPY', symbol: '¥', name: 'Japanese Yen' },
+  { code: 'KRW', symbol: '₩', name: 'South Korean Won' },
+  { code: 'MXN', symbol: '$', name: 'Mexican Peso' },
+  { code: 'NZD', symbol: '$', name: 'New Zealand Dollar' },
+  { code: 'RUB', symbol: '₽', name: 'Russian Ruble' },
+  { code: 'SEK', symbol: 'kr', name: 'Swedish Krona' },
+  { code: 'SGD', symbol: '$', name: 'Singapore Dollar' },
+  { code: 'THB', symbol: '฿', name: 'Thai Baht' },
+  { code: 'TRY', symbol: '₺', name: 'Turkish Lira' },
+  { code: 'ZAR', symbol: 'R', name: 'South African Rand' },
+]
 
 export function PersonalSettings({ children, onSettingsChange }: PersonalSettingsProps) {
   const [open, setOpen] = useState(false)
   const [settings, setSettings] = useState<UserSettings>({
     firstName: "",
     lastName: "",
+    defaultBillableRate: undefined,
+    currency: "USD",
   })
   const [isLoading, setIsLoading] = useState(false)
 
@@ -108,6 +136,54 @@ export function PersonalSettings({ children, onSettingsChange }: PersonalSetting
                   placeholder="Enter your last name"
                 />
               </div>
+              <div className="space-y-2">
+                <Label htmlFor="currency">Currency</Label>
+                <Select
+                  value={settings.currency}
+                  onValueChange={(value) => setSettings((prev) => ({ ...prev, currency: value }))}
+                >
+                  <SelectTrigger id="currency">
+                    <SelectValue placeholder="Select currency" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CURRENCIES.map((currency) => (
+                      <SelectItem key={currency.code} value={currency.code}>
+                        <span className="flex items-center gap-2">
+                          <span className="font-mono w-6">{currency.symbol}</span>
+                          <span>{currency.name} ({currency.code})</span>
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Currency used for billable amounts in reports
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="billableRate">Default Billable Rate (per hour)</Label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                    {CURRENCIES.find(c => c.code === settings.currency)?.symbol || '$'}
+                  </span>
+                  <Input
+                    id="billableRate"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    className="pl-7"
+                    value={settings.defaultBillableRate || ""}
+                    onChange={(e) => setSettings((prev) => ({ 
+                      ...prev, 
+                      defaultBillableRate: e.target.value ? parseFloat(e.target.value) : undefined 
+                    }))}
+                    placeholder="0.00"
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  This rate will be used by default for new time entries
+                </p>
+              </div>
             </CardContent>
           </Card>
         </div>
@@ -124,6 +200,15 @@ export function PersonalSettings({ children, onSettingsChange }: PersonalSetting
     </Dialog>
   )
 }
+
+
+
+
+
+
+
+
+
 
 
 

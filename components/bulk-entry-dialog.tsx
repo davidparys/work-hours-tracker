@@ -23,7 +23,8 @@ interface BulkEntryDialogProps {
 
 interface HourAssignment {
   hour: number
-  project: string
+  projectId?: number
+  billableRate?: number
   description: string
 }
 
@@ -36,17 +37,26 @@ export function BulkEntryDialog({ projects, onEntriesAdded, children }: BulkEntr
   const [hourAssignments, setHourAssignments] = useState<HourAssignment[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [selectedHours, setSelectedHours] = useState<Set<number>>(new Set())
-  const [bulkProject, setBulkProject] = useState("")
+  const [bulkProjectId, setBulkProjectId] = useState<number | undefined>()
+  const [bulkBillableRate, setBulkBillableRate] = useState<number | undefined>()
   const [bulkDescription, setBulkDescription] = useState("")
   const [companySettings, setCompanySettings] = useState<any>(null)
+  const [userSettings, setUserSettings] = useState<any>(null)
 
   useEffect(() => {
     const loadSettings = async () => {
       try {
-        const settings = await db.getCompanySettings()
-        setCompanySettings(settings)
+        const [compSettings, usrSettings] = await Promise.all([
+          db.getCompanySettings(),
+          db.getUserSettings()
+        ])
+        setCompanySettings(compSettings)
+        setUserSettings(usrSettings)
+        if (usrSettings?.defaultBillableRate) {
+          setBulkBillableRate(usrSettings.defaultBillableRate)
+        }
       } catch (error) {
-        console.error("Failed to load company settings:", error)
+        console.error("Failed to load settings:", error)
       }
     }
     loadSettings()
@@ -61,7 +71,8 @@ export function BulkEntryDialog({ projects, onEntriesAdded, children }: BulkEntr
       const isWorkingHour = i >= start && i < start + hours
       assignments.push({
         hour: i,
-        project: isWorkingHour ? hourAssignments[i]?.project || "" : "",
+        projectId: isWorkingHour ? hourAssignments[i]?.projectId : undefined,
+        billableRate: isWorkingHour ? (hourAssignments[i]?.billableRate || userSettings?.defaultBillableRate) : undefined,
         description: isWorkingHour ? hourAssignments[i]?.description || "" : "",
       })
     }
@@ -72,7 +83,7 @@ export function BulkEntryDialog({ projects, onEntriesAdded, children }: BulkEntr
     generateHourAssignments()
   }, [hoursPerDay, startTime])
 
-  const updateHourAssignment = (index: number, field: "project" | "description", value: string) => {
+  const updateHourAssignment = (index: number, field: keyof HourAssignment, value: any) => {
     setHourAssignments((prev) =>
       prev.map((assignment, i) => (i === index ? { ...assignment, [field]: value } : assignment)),
     )
@@ -103,12 +114,18 @@ export function BulkEntryDialog({ projects, onEntriesAdded, children }: BulkEntr
 
     setHourAssignments((prev) =>
       prev.map((assignment, index) =>
-        selectedHours.has(index) ? { ...assignment, project: bulkProject, description: bulkDescription } : assignment,
+        selectedHours.has(index) ? { 
+          ...assignment, 
+          projectId: bulkProjectId, 
+          billableRate: bulkBillableRate,
+          description: bulkDescription 
+        } : assignment,
       ),
     )
 
     setSelectedHours(new Set())
-    setBulkProject("")
+    setBulkProjectId(undefined)
+    setBulkBillableRate(userSettings?.defaultBillableRate)
     setBulkDescription("")
   }
 
@@ -116,11 +133,13 @@ export function BulkEntryDialog({ projects, onEntriesAdded, children }: BulkEntr
     setHourAssignments((prev) =>
       prev.map((assignment) => ({
         ...assignment,
-        project: bulkProject,
+        projectId: bulkProjectId,
+        billableRate: bulkBillableRate,
         description: bulkDescription,
       })),
     )
-    setBulkProject("")
+    setBulkProjectId(undefined)
+    setBulkBillableRate(userSettings?.defaultBillableRate)
     setBulkDescription("")
   }
 
@@ -159,13 +178,14 @@ export function BulkEntryDialog({ projects, onEntriesAdded, children }: BulkEntr
         if (currentDate.getDay() !== 0 && currentDate.getDay() !== 6) {
           for (const assignment of hourAssignments) {
             // Only add entries for working hours that have a project assigned
-            if (isWorkingHour(assignment.hour) && assignment.project) {
+            if (isWorkingHour(assignment.hour) && assignment.projectId) {
               await db.addTimeEntry({
                 date: formatDate(currentDate),
-                start_hour: assignment.hour,
-                end_hour: assignment.hour + 1,
+                startHour: assignment.hour,
+                endHour: assignment.hour + 1,
                 duration: 1,
-                project: assignment.project,
+                projectId: assignment.projectId,
+                billableRate: assignment.billableRate,
                 description: assignment.description || undefined,
               })
             }
@@ -183,7 +203,8 @@ export function BulkEntryDialog({ projects, onEntriesAdded, children }: BulkEntr
       setStartTime("9")
       setHourAssignments([])
       setSelectedHours(new Set())
-      setBulkProject("")
+      setBulkProjectId(undefined)
+      setBulkBillableRate(userSettings?.defaultBillableRate)
       setBulkDescription("")
     } catch (error) {
       console.error("Error adding bulk entries:", error)
@@ -320,13 +341,16 @@ export function BulkEntryDialog({ projects, onEntriesAdded, children }: BulkEntr
                   </div>
                   <div className="grid grid-cols-12 gap-2 items-center">
                     <div className="col-span-5">
-                      <Select value={bulkProject} onValueChange={setBulkProject}>
+                      <Select 
+                        value={bulkProjectId?.toString() || ""} 
+                        onValueChange={(val) => setBulkProjectId(val ? Number(val) : undefined)}
+                      >
                         <SelectTrigger className="h-8">
                           <SelectValue placeholder="Select project" />
                         </SelectTrigger>
                         <SelectContent>
                           {projects.map((proj) => (
-                            <SelectItem key={proj.id} value={proj.name}>
+                            <SelectItem key={proj.id} value={proj.id!.toString()}>
                               <div className="flex items-center gap-2">
                                 <div className="w-2 h-2 rounded-full" style={{ backgroundColor: proj.color }} />
                                 {proj.name}
@@ -349,7 +373,7 @@ export function BulkEntryDialog({ projects, onEntriesAdded, children }: BulkEntr
                         size="sm"
                         onClick={applyBulkToSelected}
                         className="h-8 px-2 text-xs"
-                        disabled={!bulkProject}
+                        disabled={!bulkProjectId}
                       >
                         Apply
                       </Button>
@@ -360,7 +384,7 @@ export function BulkEntryDialog({ projects, onEntriesAdded, children }: BulkEntr
                     size="sm"
                     onClick={applyToAll}
                     className="h-7 text-xs w-full bg-transparent"
-                    disabled={!bulkProject}
+                    disabled={!bulkProjectId}
                   >
                     Apply to All Hours
                   </Button>
@@ -401,8 +425,8 @@ export function BulkEntryDialog({ projects, onEntriesAdded, children }: BulkEntr
                       </div>
                       <div className="col-span-4">
                         <Select
-                          value={assignment.project}
-                          onValueChange={(value) => updateHourAssignment(index, "project", value)}
+                          value={assignment.projectId?.toString() || ""}
+                          onValueChange={(value) => updateHourAssignment(index, "projectId", value ? Number(value) : undefined)}
                           disabled={!isWorkingHour(assignment.hour)}
                         >
                           <SelectTrigger className="h-8">
@@ -410,7 +434,7 @@ export function BulkEntryDialog({ projects, onEntriesAdded, children }: BulkEntr
                           </SelectTrigger>
                           <SelectContent>
                             {projects.map((proj) => (
-                              <SelectItem key={proj.id} value={proj.name}>
+                              <SelectItem key={proj.id} value={proj.id!.toString()}>
                                 <div className="flex items-center gap-2">
                                   <div className="w-2 h-2 rounded-full" style={{ backgroundColor: proj.color }} />
                                   {proj.name}
@@ -468,8 +492,8 @@ export function BulkEntryDialog({ projects, onEntriesAdded, children }: BulkEntr
                         </div>
                         <div className="col-span-4">
                           <Select
-                            value={assignment.project}
-                            onValueChange={(value) => updateHourAssignment(actualIndex, "project", value)}
+                            value={assignment.projectId?.toString() || ""}
+                            onValueChange={(value) => updateHourAssignment(actualIndex, "projectId", value ? Number(value) : undefined)}
                             disabled={!isWorkingHour(assignment.hour)}
                           >
                             <SelectTrigger className="h-8">
@@ -477,7 +501,7 @@ export function BulkEntryDialog({ projects, onEntriesAdded, children }: BulkEntr
                             </SelectTrigger>
                             <SelectContent>
                               {projects.map((proj) => (
-                                <SelectItem key={proj.id} value={proj.name}>
+                                <SelectItem key={proj.id} value={proj.id!.toString()}>
                                   <div className="flex items-center gap-2">
                                     <div className="w-2 h-2 rounded-full" style={{ backgroundColor: proj.color }} />
                                     {proj.name}
@@ -534,8 +558,8 @@ export function BulkEntryDialog({ projects, onEntriesAdded, children }: BulkEntr
                         </div>
                         <div className="col-span-4">
                           <Select
-                            value={assignment.project}
-                            onValueChange={(value) => updateHourAssignment(actualIndex, "project", value)}
+                            value={assignment.projectId?.toString() || ""}
+                            onValueChange={(value) => updateHourAssignment(actualIndex, "projectId", value ? Number(value) : undefined)}
                             disabled={!isWorkingHour(assignment.hour)}
                           >
                             <SelectTrigger className="h-8">
@@ -543,7 +567,7 @@ export function BulkEntryDialog({ projects, onEntriesAdded, children }: BulkEntr
                             </SelectTrigger>
                             <SelectContent>
                               {projects.map((proj) => (
-                                <SelectItem key={proj.id} value={proj.name}>
+                                <SelectItem key={proj.id} value={proj.id!.toString()}>
                                   <div className="flex items-center gap-2">
                                     <div className="w-2 h-2 rounded-full" style={{ backgroundColor: proj.color }} />
                                     {proj.name}

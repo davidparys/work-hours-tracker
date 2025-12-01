@@ -78,14 +78,36 @@ export function ProjectManager({ children, onProjectsChange }: ProjectManagerPro
     }
   }
 
+  const handleUpdateProject = async () => {
+    if (!editingProject || !editingProject.id) return
+
+    if (!editingProject.name.trim()) {
+      alert("Project name is required")
+      return
+    }
+
+    try {
+      const updated = await db.updateProject(editingProject.id, {
+        name: editingProject.name.trim(),
+        color: editingProject.color,
+      })
+
+      setProjects(projects.map((p) => (p.id === updated.id ? updated : p)))
+      setEditingProject(null)
+      onProjectsChange?.()
+    } catch (error) {
+      console.error("Failed to update project:", error)
+      alert("Failed to update project. Please try again.")
+    }
+  }
+
   const handleDeleteProject = async (projectId: number) => {
     if (!confirm("Are you sure you want to delete this project? This action cannot be undone.")) {
       return
     }
 
     try {
-      // Note: In a real implementation, you'd want to handle existing time entries
-      // that reference this project (either cascade delete or set to null)
+      await db.deleteProject(projectId)
       setProjects(projects.filter((p) => p.id !== projectId))
       onProjectsChange?.()
     } catch (error) {
@@ -180,9 +202,48 @@ export function ProjectManager({ children, onProjectsChange }: ProjectManagerPro
                 </div>
               )}
 
+              {/* Edit Project Form */}
+              {editingProject && (
+                <div className="space-y-4 p-4 border rounded-lg bg-muted/30 mt-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-muted-foreground">Editing Project</span>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Project Name</Label>
+                    <Input
+                      placeholder="Enter project name"
+                      value={editingProject.name}
+                      onChange={(e) => setEditingProject({ ...editingProject, name: e.target.value })}
+                      onKeyDown={(e) => e.key === "Enter" && handleUpdateProject()}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Color</Label>
+                    <ColorPicker
+                      selectedColor={editingProject.color}
+                      onColorChange={(color) => setEditingProject({ ...editingProject, color })}
+                    />
+                  </div>
+
+                  <div className="flex gap-2">
+                    <Button onClick={handleUpdateProject} size="sm">
+                      Save Changes
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => setEditingProject(null)}
+                      size="sm"
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              )}
+
               {/* Existing Projects */}
               <div className="space-y-3 mt-4">
-                {projects.length === 0 && !isAddingProject ? (
+                {projects.length === 0 && !isAddingProject && !editingProject ? (
                   <div className="text-center py-8 text-muted-foreground">
                     <Palette className="h-12 w-12 mx-auto mb-4 opacity-50" />
                     <p>No projects yet</p>

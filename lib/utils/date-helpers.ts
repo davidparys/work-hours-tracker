@@ -103,3 +103,79 @@ export function getWeekDayHeaders(weekStartsOn: 'saturday' | 'sunday' | 'monday'
   
   return headers
 }
+
+/**
+ * Get the ISO 8601 week number for a given date.
+ * Week 1 is the week containing the first Thursday of the year.
+ */
+export function getISOWeekNumber(date: Date): number {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()))
+  // Set to nearest Thursday: current date + 4 - current day number (make Sunday=7)
+  const dayNum = d.getUTCDay() || 7
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum)
+  // Get first day of year
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1))
+  // Calculate full weeks to nearest Thursday
+  const weekNo = Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7)
+  return weekNo
+}
+
+/**
+ * Get the ISO week year for a given date.
+ * This may differ from the calendar year for dates at year boundaries.
+ */
+export function getISOWeekYear(date: Date): number {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()))
+  const dayNum = d.getUTCDay() || 7
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum)
+  return d.getUTCFullYear()
+}
+
+/**
+ * Currency symbols mapping
+ */
+const CURRENCY_SYMBOLS: Record<string, string> = {
+  'USD': '$',
+  'EUR': '€',
+  'GBP': '£',
+  'CAD': 'C$',
+  'AUD': 'A$',
+  'CHF': 'Fr.',
+}
+
+/**
+ * Format a currency amount with the appropriate symbol.
+ * @param amount The numeric amount to format
+ * @param currency The currency code (USD, EUR, GBP, etc.)
+ * @returns Formatted currency string (e.g., "$1,234.56")
+ */
+export function formatCurrency(amount: number, currency: string = 'USD'): string {
+  const symbol = CURRENCY_SYMBOLS[currency] || currency
+  const formattedAmount = amount.toLocaleString('en-US', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })
+  return `${symbol}${formattedAmount}`
+}
+
+/**
+ * Format a date range for display (e.g., "Dec 1 - Dec 7" or "Dec 28 - Jan 3")
+ */
+export function formatDateRange(startDate: Date, endDate: Date): string {
+  const startMonth = startDate.toLocaleDateString('en-US', { month: 'short' })
+  const endMonth = endDate.toLocaleDateString('en-US', { month: 'short' })
+  const startDay = startDate.getDate()
+  const endDay = endDate.getDate()
+  
+  if (startMonth === endMonth) {
+    return `${startMonth} ${startDay} - ${endDay}`
+  }
+  return `${startMonth} ${startDay} - ${endMonth} ${endDay}`
+}
+
+/**
+ * Get the month name from a date
+ */
+export function getMonthName(date: Date): string {
+  return date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+}

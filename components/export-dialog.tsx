@@ -14,7 +14,7 @@ import { Badge } from "@/components/ui/badge"
 import { FileText, Download, CalendarIcon, Loader2 } from "lucide-react"
 import { db, type TimeEntry, type Project, getUserSettings } from "@/lib/database"
 import { exportToPDF } from "@/lib/pdf-generator"
-import { formatDate, formatHours } from "@/lib/utils/date-helpers"
+import { formatDate, formatHours, formatCurrency } from "@/lib/utils/date-helpers"
 import { cn } from "@/lib/utils"
 
 interface ExportDialogProps {
@@ -29,14 +29,14 @@ export function ExportDialog({ children, defaultStartDate, defaultEndDate }: Exp
   const [startDate, setStartDate] = useState<Date>(defaultStartDate || new Date())
   const [endDate, setEndDate] = useState<Date>(defaultEndDate || new Date())
   const [exportStyle, setExportStyle] = useState<"professional" | "visual">("professional")
-  const [includeActivityGrid, setIncludeActivityGrid] = useState(true)
   const [showProjects, setShowProjects] = useState(false)
   const [entries, setEntries] = useState<TimeEntry[]>([])
   const [projects, setProjects] = useState<Project[]>([])
   const [previewData, setPreviewData] = useState<{
     totalHours: number
+    totalBillable: number
     workingDays: number
-    projectBreakdown: { [project: string]: number }
+    projectBreakdown: { [project: string]: { hours: number; billable: number } }
   } | null>(null)
   const [companySettings, setCompanySettings] = useState<any>(null)
   const [userSettings, setUserSettings] = useState<any>(null)
@@ -79,15 +79,23 @@ export function ExportDialog({ children, defaultStartDate, defaultEndDate }: Exp
 
       // Calculate preview statistics
       const totalHours = entriesData.reduce((sum, entry) => sum + entry.duration, 0)
+      const totalBillable = entriesData.reduce((sum, entry) => {
+        const rate = entry.billableRate || 0
+        return sum + (entry.duration * rate)
+      }, 0)
       const workingDays = new Set(entriesData.map((e) => e.date)).size
-      const projectBreakdown: { [project: string]: number } = {}
+      const projectBreakdown: { [project: string]: { hours: number; billable: number } } = {}
 
       entriesData.forEach((entry) => {
         const project = entry.project || "Unassigned"
-        projectBreakdown[project] = (projectBreakdown[project] || 0) + entry.duration
+        if (!projectBreakdown[project]) {
+          projectBreakdown[project] = { hours: 0, billable: 0 }
+        }
+        projectBreakdown[project].hours += entry.duration
+        projectBreakdown[project].billable += entry.duration * (entry.billableRate || 0)
       })
 
-      setPreviewData({ totalHours, workingDays, projectBreakdown })
+      setPreviewData({ totalHours, totalBillable, workingDays, projectBreakdown })
     } catch (error) {
       console.error("Failed to load preview data:", error)
     }
@@ -104,9 +112,9 @@ export function ExportDialog({ children, defaultStartDate, defaultEndDate }: Exp
         entries,
         projects,
         style: exportStyle,
-        includeActivityGrid,
         showProjects,
         weekStartsOn: companySettings?.weekStartsOn || 'sunday',
+        currency: userSettings?.currency || 'USD',
         userSettings: userSettings ? {
           firstName: userSettings.firstName,
           lastName: userSettings.lastName,
@@ -213,8 +221,8 @@ export function ExportDialog({ children, defaultStartDate, defaultEndDate }: Exp
                 </SelectItem>
                 <SelectItem value="visual">
                   <div className="flex flex-col">
-                    <span className="font-medium">Visual</span>
-                    <span className="text-sm text-muted-foreground">GitHub-style activity grid and colors</span>
+                    <span className="font-medium">Weekly Breakdown</span>
+                    <span className="text-sm text-muted-foreground">Professional per-week summary with billable amounts</span>
                   </div>
                 </SelectItem>
               </SelectContent>
@@ -223,24 +231,13 @@ export function ExportDialog({ children, defaultStartDate, defaultEndDate }: Exp
 
           {/* Options */}
           <div className="space-y-3">
-            {exportStyle === "visual" && (
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="activity-grid"
-                  checked={includeActivityGrid}
-                  onCheckedChange={(checked) => setIncludeActivityGrid(checked as boolean)}
-                />
-                <Label htmlFor="activity-grid">Include activity grid visualization</Label>
-              </div>
-            )}
-            
             <div className="flex items-center space-x-2">
               <Checkbox
                 id="show-projects"
                 checked={showProjects}
                 onCheckedChange={(checked) => setShowProjects(checked as boolean)}
               />
-              <Label htmlFor="show-projects">Show project breakdown per day</Label>
+              <Label htmlFor="show-projects">Show project breakdown per week</Label>
             </div>
           </div>
 
@@ -264,10 +261,16 @@ export function ExportDialog({ children, defaultStartDate, defaultEndDate }: Exp
                 </div>
               )}
               
-              <div className="grid grid-cols-3 gap-4 mb-4">
+              <div className="grid grid-cols-4 gap-4 mb-4">
                 <div className="text-center">
                   <div className="text-2xl font-bold text-primary">{formatHours(previewData.totalHours)}</div>
                   <div className="text-sm text-muted-foreground">Total Hours</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-primary">
+                    {formatCurrency(previewData.totalBillable, userSettings?.currency || 'USD')}
+                  </div>
+                  <div className="text-sm text-muted-foreground">Total Billable</div>
                 </div>
                 <div className="text-center">
                   <div className="text-2xl font-bold text-primary">{previewData.workingDays}</div>
@@ -283,10 +286,10 @@ export function ExportDialog({ children, defaultStartDate, defaultEndDate }: Exp
                 <div>
                   <div className="text-sm font-medium mb-2">Project Breakdown:</div>
                   <div className="flex flex-wrap gap-2">
-                    {Object.entries(previewData.projectBreakdown).map(([project, hours]) => (
+                    {Object.entries(previewData.projectBreakdown).map(([project, data]) => (
                       <Badge key={project} variant="secondary" className="gap-1">
                         <div className="w-2 h-2 rounded-full" style={{ backgroundColor: getProjectColor(project) }} />
-                        {project}: {formatHours(hours)}
+                        {project}: {formatHours(data.hours)} ({formatCurrency(data.billable, userSettings?.currency || 'USD')})
                       </Badge>
                     ))}
                   </div>

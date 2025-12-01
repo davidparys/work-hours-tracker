@@ -4,13 +4,27 @@ import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
-import { Clock, Plus, Trash2, Zap, LayoutGrid, List } from "lucide-react"
+import { Clock, Plus, Trash2, Zap, LayoutGrid, List, Pencil } from "lucide-react"
 import { type TimeEntry, type Project, db } from "@/lib/database"
-import { formatDate, formatHours } from "@/lib/utils/date-helpers"
+import { formatDate, formatHours, formatCurrency } from "@/lib/utils/date-helpers"
+
+// Currency symbols mapping
+const CURRENCY_SYMBOLS: Record<string, string> = {
+  'USD': '$',
+  'EUR': '€',
+  'GBP': '£',
+  'CAD': 'C$',
+  'AUD': 'A$',
+  'CHF': 'Fr.',
+}
 import { cn } from "@/lib/utils"
 import { BulkEntryDialog } from "./bulk-entry-dialog"
+import { BulkEditDialog } from "./bulk-edit-dialog"
+import { EditEntryDialog } from "./edit-entry-dialog"
+import { DateNavigator } from "./date-navigator"
 
 interface DayViewProps {
   selectedDate: Date
@@ -22,10 +36,15 @@ export function DayView({ selectedDate, onDateChange }: DayViewProps) {
   const [projects, setProjects] = useState<Project[]>([])
   const [isAddingEntry, setIsAddingEntry] = useState(false)
   const [viewMode, setViewMode] = useState<"grid" | "timeline">("timeline")
+  const [defaultBillableRate, setDefaultBillableRate] = useState<number | undefined>()
+  const [currency, setCurrency] = useState<string>('USD')
+  const [editingEntry, setEditingEntry] = useState<TimeEntry | null>(null)
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [newEntry, setNewEntry] = useState({
-    start_hour: 9,
-    end_hour: 10,
-    project: "",
+    startHour: 9,
+    endHour: 10,
+    projectId: undefined as number | undefined,
+    billableRate: undefined as number | undefined,
     description: "",
   })
 
@@ -37,30 +56,51 @@ export function DayView({ selectedDate, onDateChange }: DayViewProps) {
   }, [selectedDate])
 
   const loadData = async () => {
-    const [entries, projectList] = await Promise.all([db.getTimeEntries(dateString, dateString), db.getProjects()])
+    const [entries, projectList, userSettings] = await Promise.all([
+      db.getTimeEntries(dateString, dateString),
+      db.getProjects(),
+      db.getUserSettings(),
+    ])
     setTimeEntries(entries)
     setProjects(projectList)
+    setDefaultBillableRate(userSettings.defaultBillableRate)
+    setCurrency(userSettings.currency || 'USD')
+    // Set default billable rate for new entries
+    if (userSettings.defaultBillableRate && !newEntry.billableRate) {
+      setNewEntry(prev => ({ ...prev, billableRate: userSettings.defaultBillableRate }))
+    }
+  }
+
+  const getCurrencySymbol = (): string => {
+    return CURRENCY_SYMBOLS[currency] || currency
   }
 
   const handleAddEntry = async () => {
-    if (newEntry.start_hour >= newEntry.end_hour) {
+    if (newEntry.startHour >= newEntry.endHour) {
       alert("End time must be after start time")
       return
     }
 
-    const duration = newEntry.end_hour - newEntry.start_hour
+    const duration = newEntry.endHour - newEntry.startHour
     const entry = await db.addTimeEntry({
       date: dateString,
-      start_hour: newEntry.start_hour,
-      end_hour: newEntry.end_hour,
+      startHour: newEntry.startHour,
+      endHour: newEntry.endHour,
       duration,
-      project: newEntry.project || undefined,
+      projectId: newEntry.projectId,
+      billableRate: newEntry.billableRate,
       description: newEntry.description || undefined,
     })
 
     setTimeEntries([...timeEntries, entry])
     setIsAddingEntry(false)
-    setNewEntry({ start_hour: 9, end_hour: 10, project: "", description: "" })
+    setNewEntry({ 
+      startHour: 9, 
+      endHour: 10, 
+      projectId: undefined, 
+      billableRate: defaultBillableRate,
+      description: "" 
+    })
   }
 
   const handleDeleteEntry = async (id: number) => {
@@ -68,14 +108,23 @@ export function DayView({ selectedDate, onDateChange }: DayViewProps) {
     setTimeEntries(timeEntries.filter((entry) => entry.id !== id))
   }
 
+  const handleEditEntry = (entry: TimeEntry) => {
+    setEditingEntry(entry)
+    setIsEditDialogOpen(true)
+  }
+
   const getHourStatus = (hour: number): "free" | "busy" => {
-    const overlapping = timeEntries.filter((entry) => hour >= entry.start_hour && hour < entry.end_hour)
+    const overlapping = timeEntries.filter((entry) => hour >= entry.startHour && hour < entry.endHour)
     return overlapping.length > 0 ? "busy" : "free"
   }
 
-  const getProjectColor = (projectName?: string): string => {
-    if (!projectName) return "#6b7280"
-    const project = projects.find((p) => p.name === projectName)
+  const getProjectById = (projectId?: number) => {
+    if (!projectId) return null
+    return projects.find((p) => p.id === projectId)
+  }
+
+  const getProjectColor = (projectId?: number): string => {
+    const project = getProjectById(projectId)
     return project?.color || "#6b7280"
   }
 
@@ -92,7 +141,7 @@ export function DayView({ selectedDate, onDateChange }: DayViewProps) {
           <div className="grid grid-cols-10 gap-2 p-3 bg-muted/20 rounded-lg border border-border/30">
             {allHours.slice(workHourStart, workHourEnd).map((hour) => {
               const status = getHourStatus(hour)
-              const entry = timeEntries.find((e) => hour >= e.start_hour && hour < e.end_hour)
+              const entry = timeEntries.find((e) => hour >= e.startHour && hour < e.endHour)
 
               return (
                 <div
@@ -103,14 +152,14 @@ export function DayView({ selectedDate, onDateChange }: DayViewProps) {
                     status === "busy" && "text-white border-transparent shadow-sm",
                   )}
                   style={{
-                    backgroundColor: status === "busy" ? getProjectColor(entry?.project) : undefined,
+                    backgroundColor: status === "busy" ? getProjectColor(entry?.projectId) : undefined,
                   }}
-                  title={`${hour}:00 - ${entry ? `${entry.project || "Work"}: ${entry.description || "No description"}` : "Available"}`}
+                  title={`${hour}:00 - ${entry ? `${getProjectById(entry.projectId)?.name || "Work"}: ${entry.description || "No description"}` : "Available"}`}
                 >
                   <span className="font-mono text-xs font-medium">{hour}</span>
                   {entry && (
                     <span className="text-[10px] opacity-90 truncate w-full text-center">
-                      {entry.project?.slice(0, 2) || "W"}
+                      {getProjectById(entry.projectId)?.name?.slice(0, 2) || "W"}
                     </span>
                   )}
                 </div>
@@ -126,7 +175,7 @@ export function DayView({ selectedDate, onDateChange }: DayViewProps) {
             {/* Early Hours (0-8) */}
             {allHours.slice(0, workHourStart).map((hour) => {
               const status = getHourStatus(hour)
-              const entry = timeEntries.find((e) => hour >= e.start_hour && hour < e.end_hour)
+              const entry = timeEntries.find((e) => hour >= e.startHour && hour < e.endHour)
 
               return (
                 <div
@@ -137,9 +186,9 @@ export function DayView({ selectedDate, onDateChange }: DayViewProps) {
                     status === "busy" && "text-white border-transparent shadow-sm opacity-100",
                   )}
                   style={{
-                    backgroundColor: status === "busy" ? getProjectColor(entry?.project) : undefined,
+                    backgroundColor: status === "busy" ? getProjectColor(entry?.projectId) : undefined,
                   }}
-                  title={`${hour}:00 - ${entry ? `${entry.project || "Work"}: ${entry.description || "No description"}` : "Available"}`}
+                  title={`${hour}:00 - ${entry ? `${getProjectById(entry.projectId)?.name || "Work"}: ${entry.description || "No description"}` : "Available"}`}
                 >
                   <span className="font-mono text-[10px] font-medium">{hour}</span>
                 </div>
@@ -149,7 +198,7 @@ export function DayView({ selectedDate, onDateChange }: DayViewProps) {
             {/* Late Hours (18-23) */}
             {allHours.slice(workHourEnd).map((hour) => {
               const status = getHourStatus(hour)
-              const entry = timeEntries.find((e) => hour >= e.start_hour && hour < e.end_hour)
+              const entry = timeEntries.find((e) => hour >= e.startHour && hour < e.endHour)
 
               return (
                 <div
@@ -160,9 +209,9 @@ export function DayView({ selectedDate, onDateChange }: DayViewProps) {
                     status === "busy" && "text-white border-transparent shadow-sm opacity-100",
                   )}
                   style={{
-                    backgroundColor: status === "busy" ? getProjectColor(entry?.project) : undefined,
+                    backgroundColor: status === "busy" ? getProjectColor(entry?.projectId) : undefined,
                   }}
-                  title={`${hour}:00 - ${entry ? `${entry.project || "Work"}: ${entry.description || "No description"}` : "Available"}`}
+                  title={`${hour}:00 - ${entry ? `${getProjectById(entry.projectId)?.name || "Work"}: ${entry.description || "No description"}` : "Available"}`}
                 >
                   <span className="font-mono text-[10px] font-medium">{hour}</span>
                 </div>
@@ -187,7 +236,7 @@ export function DayView({ selectedDate, onDateChange }: DayViewProps) {
             <div className="text-xs font-medium text-muted-foreground mb-2 px-1">Early Hours</div>
             <div className="space-y-1 opacity-75">
               {allHours.slice(0, workHourStart).map((hour) => {
-                const entry = timeEntries.find((e) => hour >= e.start_hour && hour < e.end_hour)
+                const entry = timeEntries.find((e) => hour >= e.startHour && hour < e.endHour)
                 const isOccupied = !!entry
 
                 return (
@@ -206,9 +255,9 @@ export function DayView({ selectedDate, onDateChange }: DayViewProps) {
                         <div className="flex items-center gap-2">
                           <div
                             className="w-2 h-2 rounded-full"
-                            style={{ backgroundColor: getProjectColor(entry.project) }}
+                            style={{ backgroundColor: getProjectColor(entry.projectId) }}
                           />
-                          <span className="text-sm font-medium">{entry.project || "Work"}</span>
+                          <span className="text-sm font-medium">{getProjectById(entry.projectId)?.name || "Work"}</span>
                           {entry.description && (
                             <span className="text-xs text-muted-foreground">• {entry.description}</span>
                           )}
@@ -232,7 +281,7 @@ export function DayView({ selectedDate, onDateChange }: DayViewProps) {
           <div className="text-xs font-medium text-muted-foreground mb-2 px-1">Core Work Hours</div>
           <div className="space-y-1 p-3 bg-muted/20 rounded-lg border border-border/30">
             {allHours.slice(workHourStart, workHourEnd).map((hour) => {
-              const entry = timeEntries.find((e) => hour >= e.start_hour && hour < e.end_hour)
+              const entry = timeEntries.find((e) => hour >= e.startHour && hour < e.endHour)
               const isOccupied = !!entry
 
               return (
@@ -252,9 +301,9 @@ export function DayView({ selectedDate, onDateChange }: DayViewProps) {
                       <div className="flex items-center gap-3">
                         <div
                           className="w-3 h-3 rounded-full"
-                          style={{ backgroundColor: getProjectColor(entry.project) }}
+                          style={{ backgroundColor: getProjectColor(entry.projectId) }}
                         />
-                        <span className="font-medium">{entry.project || "Work"}</span>
+                        <span className="font-medium">{getProjectById(entry.projectId)?.name || "Work"}</span>
                         {entry.description && (
                           <span className="text-sm text-muted-foreground">• {entry.description}</span>
                         )}
@@ -278,7 +327,7 @@ export function DayView({ selectedDate, onDateChange }: DayViewProps) {
             <div className="text-xs font-medium text-muted-foreground mb-2 px-1">Late Hours</div>
             <div className="space-y-1 opacity-75">
               {allHours.slice(workHourEnd).map((hour) => {
-                const entry = timeEntries.find((e) => hour >= e.start_hour && hour < e.end_hour)
+                const entry = timeEntries.find((e) => hour >= e.startHour && hour < e.endHour)
                 const isOccupied = !!entry
 
                 return (
@@ -297,9 +346,9 @@ export function DayView({ selectedDate, onDateChange }: DayViewProps) {
                         <div className="flex items-center gap-2">
                           <div
                             className="w-2 h-2 rounded-full"
-                            style={{ backgroundColor: getProjectColor(entry.project) }}
+                            style={{ backgroundColor: getProjectColor(entry.projectId) }}
                           />
-                          <span className="text-sm font-medium">{entry.project || "Work"}</span>
+                          <span className="text-sm font-medium">{getProjectById(entry.projectId)?.name || "Work"}</span>
                           {entry.description && (
                             <span className="text-xs text-muted-foreground">• {entry.description}</span>
                           )}
@@ -337,25 +386,11 @@ export function DayView({ selectedDate, onDateChange }: DayViewProps) {
             {formatHours(totalHours)} logged • {timeEntries.length} entries
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => onDateChange(new Date(selectedDate.getTime() - 24 * 60 * 60 * 1000))}
-          >
-            Previous
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => onDateChange(new Date())}>
-            Today
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => onDateChange(new Date(selectedDate.getTime() + 24 * 60 * 60 * 1000))}
-          >
-            Next
-          </Button>
-        </div>
+        <DateNavigator
+          mode="day"
+          selectedDate={selectedDate}
+          onDateChange={onDateChange}
+        />
       </div>
 
       <Card className="border-border/50">
@@ -400,6 +435,24 @@ export function DayView({ selectedDate, onDateChange }: DayViewProps) {
           <div className="flex items-center justify-between">
             <CardTitle className="text-lg">Time Entries</CardTitle>
             <div className="flex gap-2">
+              {timeEntries.length > 0 && (
+                <BulkEditDialog 
+                  entries={timeEntries} 
+                  projects={projects}
+                  periodLabel={selectedDate.toLocaleDateString("en-US", {
+                    weekday: "long",
+                    year: "numeric",
+                    month: "long",
+                    day: "numeric",
+                  })}
+                  onEntriesUpdated={loadData}
+                >
+                  <Button variant="outline" size="sm" className="gap-2 bg-transparent">
+                    <Pencil className="h-4 w-4" />
+                    Bulk Edit
+                  </Button>
+                </BulkEditDialog>
+              )}
               <BulkEntryDialog projects={projects} onEntriesAdded={loadData}>
                 <Button variant="outline" size="sm" className="gap-2 bg-transparent">
                   <Zap className="h-4 w-4" />
@@ -421,8 +474,8 @@ export function DayView({ selectedDate, onDateChange }: DayViewProps) {
                   <div>
                     <label className="text-sm font-medium mb-2 block">Start Time</label>
                     <Select
-                      value={newEntry.start_hour.toString()}
-                      onValueChange={(value) => setNewEntry({ ...newEntry, start_hour: Number.parseInt(value) })}
+                      value={newEntry.startHour.toString()}
+                      onValueChange={(value) => setNewEntry({ ...newEntry, startHour: Number.parseInt(value) })}
                     >
                       <SelectTrigger>
                         <SelectValue />
@@ -439,8 +492,8 @@ export function DayView({ selectedDate, onDateChange }: DayViewProps) {
                   <div>
                     <label className="text-sm font-medium mb-2 block">End Time</label>
                     <Select
-                      value={newEntry.end_hour.toString()}
-                      onValueChange={(value) => setNewEntry({ ...newEntry, end_hour: Number.parseInt(value) })}
+                      value={newEntry.endHour.toString()}
+                      onValueChange={(value) => setNewEntry({ ...newEntry, endHour: Number.parseInt(value) })}
                     >
                       <SelectTrigger>
                         <SelectValue />
@@ -459,15 +512,15 @@ export function DayView({ selectedDate, onDateChange }: DayViewProps) {
                 <div className="mb-4">
                   <label className="text-sm font-medium mb-2 block">Project</label>
                   <Select
-                    value={newEntry.project}
-                    onValueChange={(value) => setNewEntry({ ...newEntry, project: value })}
+                    value={newEntry.projectId?.toString() || ""}
+                    onValueChange={(value) => setNewEntry({ ...newEntry, projectId: value ? Number(value) : undefined })}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Select project (optional)" />
                     </SelectTrigger>
                     <SelectContent>
                       {projects.map((project) => (
-                        <SelectItem key={project.id} value={project.name}>
+                        <SelectItem key={project.id} value={project.id!.toString()}>
                           <div className="flex items-center gap-2">
                             <div className="w-3 h-3 rounded-full" style={{ backgroundColor: project.color }} />
                             {project.name}
@@ -476,6 +529,27 @@ export function DayView({ selectedDate, onDateChange }: DayViewProps) {
                       ))}
                     </SelectContent>
                   </Select>
+                </div>
+
+                <div className="mb-4">
+                  <label className="text-sm font-medium mb-2 block">Billable Rate (per hour)</label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">{getCurrencySymbol()}</span>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      className="pl-7"
+                      value={newEntry.billableRate || ""}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewEntry({ ...newEntry, billableRate: e.target.value ? parseFloat(e.target.value) : undefined })}
+                      placeholder={defaultBillableRate ? defaultBillableRate.toString() : "0.00"}
+                    />
+                  </div>
+                  {defaultBillableRate && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Default rate: {formatCurrency(defaultBillableRate, currency)}/hr
+                    </p>
+                  )}
                 </div>
 
                 <div className="mb-4">
@@ -515,23 +589,31 @@ export function DayView({ selectedDate, onDateChange }: DayViewProps) {
                 >
                   <div className="flex items-center gap-4">
                     <div className="text-sm font-mono text-muted-foreground">
-                      {entry.start_hour.toString().padStart(2, "0")}:00 - {entry.end_hour.toString().padStart(2, "0")}
+                      {entry.startHour.toString().padStart(2, "0")}:00 - {entry.endHour.toString().padStart(2, "0")}
                       :00
                     </div>
                     <Badge variant="secondary" className="gap-1">
                       <div
                         className="w-2 h-2 rounded-full"
-                        style={{ backgroundColor: getProjectColor(entry.project) }}
+                        style={{ backgroundColor: getProjectColor(entry.projectId) }}
                       />
                       {formatHours(entry.duration)}
                     </Badge>
-                    {entry.project && <Badge variant="outline">{entry.project}</Badge>}
+                    {getProjectById(entry.projectId)?.name && <Badge variant="outline">{getProjectById(entry.projectId)?.name}</Badge>}
                   </div>
 
-                  <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2">
                     {entry.description && (
                       <span className="text-sm text-muted-foreground max-w-xs truncate">{entry.description}</span>
                     )}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleEditEntry(entry)}
+                      className="text-muted-foreground hover:text-foreground"
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
                     <Button
                       variant="ghost"
                       size="sm"
@@ -547,6 +629,15 @@ export function DayView({ selectedDate, onDateChange }: DayViewProps) {
           )}
         </CardContent>
       </Card>
+
+      <EditEntryDialog 
+        entry={editingEntry} 
+        projects={projects} 
+        open={isEditDialogOpen} 
+        onOpenChange={setIsEditDialogOpen} 
+        onEntryUpdated={loadData}
+        currency={currency}
+      />
     </div>
   )
 }
