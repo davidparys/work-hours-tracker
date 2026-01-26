@@ -69,7 +69,7 @@ export class PDFGenerator {
       this.doc.setFontSize(12)
       this.doc.setTextColor(71, 85, 105) // #475569
       this.doc.setFont('helvetica', 'normal')
-      
+
       // User name
       if (options.userSettings?.firstName || options.userSettings?.lastName) {
         const fullName = `${options.userSettings.firstName || ''} ${options.userSettings.lastName || ''}`.trim()
@@ -78,13 +78,13 @@ export class PDFGenerator {
           this.currentY += 12
         }
       }
-      
+
       // Company name
       if (options.companySettings?.companyName) {
         this.doc.text(`Company: ${options.companySettings.companyName}`, this.margin, this.currentY)
         this.currentY += 12
       }
-      
+
       this.currentY += 8
     }
 
@@ -104,11 +104,17 @@ export class PDFGenerator {
     // Get week dates for the selected period
     const weekDates = this.getWeekDatesInRange(options.startDate, options.endDate, options.weekStartsOn || 'sunday')
     const isMultiWeek = weekDates.length > 1
-    
+
     // Summary statistics
     const totalHours = options.entries.reduce((sum, entry) => sum + entry.duration, 0)
     const workingDays = new Set(options.entries.map((e) => e.date)).size
     const avgHoursPerDay = workingDays > 0 ? totalHours / workingDays : 0
+
+    // Check if we need a new page before summary
+    if (this.currentY > this.pageHeight - 100) {
+      this.doc.addPage()
+      this.currentY = this.margin
+    }
 
     this.doc.setFontSize(16)
     this.doc.setTextColor(22, 78, 99)
@@ -119,7 +125,7 @@ export class PDFGenerator {
     this.doc.setFontSize(12)
     this.doc.setTextColor(71, 85, 105)
     this.doc.setFont('helvetica', 'normal')
-    
+
     const summaryData = [
       ["Total Hours:", formatHours(totalHours)],
       ["Working Days:", workingDays.toString()],
@@ -139,6 +145,12 @@ export class PDFGenerator {
 
     // Weekly/Monthly breakdown - only show if showProjects is enabled
     if (options.showProjects) {
+      // Check if we need a new page before breakdown
+      if (this.currentY > this.pageHeight - 100) {
+        this.doc.addPage()
+        this.currentY = this.margin
+      }
+
       if (isMultiWeek) {
         // Monthly view for multi-week periods
         this.doc.setFontSize(16)
@@ -159,10 +171,10 @@ export class PDFGenerator {
 
         // Process single week
         const week = weekDates[0]
-        const weekEntries = options.entries.filter(entry => 
+        const weekEntries = options.entries.filter(entry =>
           entry.date >= week.start && entry.date <= week.end
         )
-        
+
         if (weekEntries.length > 0) {
           const weekTotalHours = weekEntries.reduce((sum, entry) => sum + entry.duration, 0)
           const weekStartDate = new Date(week.start + "T00:00:00")
@@ -188,25 +200,36 @@ export class PDFGenerator {
           // Daily breakdown
           const dailyHours = this.calculateDailyHours(weekEntries)
           const dayNames = getWeekDayHeaders(options.weekStartsOn || 'sunday')
-          
+
           for (const date of week.dates) {
+            // Check if we need a new page before each day
+            if (this.currentY > this.pageHeight - 80) {
+              this.doc.addPage()
+              this.currentY = this.margin
+            }
+
             const dayDate = new Date(date + "T00:00:00")
             const dayName = dayNames[week.dates.indexOf(date)]
             const hours = dailyHours[date] || 0
-            
+
             if (hours > 0) {
               this.doc.text(`${dayName} ${dayDate.getDate()}:`, this.margin + 20, this.currentY)
               this.doc.setFont('helvetica', 'bold')
               this.doc.text(formatHours(hours), this.margin + 60, this.currentY)
               this.doc.setFont('helvetica', 'normal')
-              
+
               // Show project breakdown if enabled
               if (options.showProjects) {
                 const dayEntries = weekEntries.filter(entry => entry.date === date)
                 const projectBreakdown = this.calculateProjectHours(dayEntries)
-                
+
                 Object.entries(projectBreakdown).forEach(([project, projectHours]) => {
                   this.currentY += 10
+                  // Check if we need a new page for project items
+                  if (this.currentY > this.pageHeight - 40) {
+                    this.doc.addPage()
+                    this.currentY = this.margin
+                  }
                   this.doc.setFontSize(10)
                   this.doc.setTextColor(107, 114, 128) // #6b7280
                   this.doc.text(`  • ${project}: ${formatHours(projectHours)}`, this.margin + 30, this.currentY)
@@ -214,7 +237,7 @@ export class PDFGenerator {
                 this.doc.setFontSize(12)
                 this.doc.setTextColor(71, 85, 105)
               }
-              
+
               this.currentY += 15
             }
           }
@@ -228,6 +251,13 @@ export class PDFGenerator {
     const projectHours = this.calculateProjectHours(options.entries)
     if (Object.keys(projectHours).length > 0) {
       this.currentY += 10
+
+      // Check if we need a new page before project summary
+      if (this.currentY > this.pageHeight - 100) {
+        this.doc.addPage()
+        this.currentY = this.margin
+      }
+
       this.doc.setFontSize(16)
       this.doc.setTextColor(22, 78, 99)
       this.doc.setFont('helvetica', 'bold')
@@ -235,6 +265,12 @@ export class PDFGenerator {
       this.currentY += 20
 
       Object.entries(projectHours).forEach(([project, hours]) => {
+        // Check if we need a new page for each project
+        if (this.currentY > this.pageHeight - 40) {
+          this.doc.addPage()
+          this.currentY = this.margin
+        }
+
         const percentage = ((hours / totalHours) * 100).toFixed(1)
         this.doc.setFontSize(12)
         this.doc.setTextColor(71, 85, 105)
@@ -259,7 +295,7 @@ export class PDFGenerator {
 
   private async generateVisualReport(options: PDFExportOptions) {
     const currency = options.currency || 'USD'
-    
+
     // Header with professional styling
     this.doc.setFillColor(22, 78, 99) // #164e63
     this.doc.rect(0, 0, this.pageWidth, 50, 'F')
@@ -279,11 +315,11 @@ export class PDFGenerator {
     // User and Company Information - compact layout
     const startDate = new Date(options.startDate + "T00:00:00")
     const endDate = new Date(options.endDate + "T00:00:00")
-    
+
     this.doc.setFontSize(10)
     this.doc.setTextColor(71, 85, 105) // #475569
     this.doc.setFont('helvetica', 'normal')
-    
+
     let infoX = this.margin
     if (options.userSettings?.firstName || options.userSettings?.lastName) {
       const fullName = `${options.userSettings.firstName || ''} ${options.userSettings.lastName || ''}`.trim()
@@ -292,11 +328,11 @@ export class PDFGenerator {
         infoX += 90
       }
     }
-    
+
     if (options.companySettings?.companyName) {
       this.doc.text(`Company: ${options.companySettings.companyName}`, infoX, this.currentY)
     }
-    
+
     this.currentY += 8
     this.doc.text(`Period: ${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`, this.margin, this.currentY)
     this.currentY += 15
@@ -331,12 +367,12 @@ export class PDFGenerator {
 
     summaryMetrics.forEach((metric, index) => {
       const x = this.margin + (index * colWidth) + colWidth / 2
-      
+
       this.doc.setFontSize(16)
       this.doc.setTextColor(22, 78, 99)
       this.doc.setFont('helvetica', 'bold')
       this.doc.text(metric.value, x, boxY + 12, { align: 'center' })
-      
+
       this.doc.setFontSize(9)
       this.doc.setTextColor(107, 114, 128)
       this.doc.setFont('helvetica', 'normal')
@@ -367,18 +403,18 @@ export class PDFGenerator {
       // Month header
       this.doc.setFillColor(22, 78, 99) // #164e63
       this.doc.rect(this.margin, this.currentY, this.pageWidth - 2 * this.margin, 20, 'F')
-      
+
       this.doc.setFontSize(12)
       this.doc.setTextColor(255, 255, 255)
       this.doc.setFont('helvetica', 'bold')
       this.doc.text(monthData.monthName, this.margin + 8, this.currentY + 13)
-      
+
       // Month totals on the right
       this.doc.setFontSize(10)
       this.doc.setFont('helvetica', 'normal')
       const monthSummary = `${formatHours(monthData.totalHours)} | ${formatCurrency(monthData.totalBillable, currency)}`
       this.doc.text(monthSummary, this.pageWidth - this.margin - 8, this.currentY + 13, { align: 'right' })
-      
+
       this.currentY += 25
 
       // Week rows for this month
@@ -400,7 +436,7 @@ export class PDFGenerator {
         this.doc.setTextColor(51, 65, 85) // #334155
         this.doc.setFont('helvetica', 'bold')
         this.doc.text(`Week ${week.weekNumber}`, this.margin + 8, this.currentY + 12)
-        
+
         this.doc.setFont('helvetica', 'normal')
         this.doc.setTextColor(107, 114, 128) // #6b7280
         this.doc.text(`(${week.dateRange})`, this.margin + 50, this.currentY + 12)
@@ -418,7 +454,7 @@ export class PDFGenerator {
           for (const [project, data] of Object.entries(week.projectBreakdown)) {
             const projectColor = options.projects.find(p => p.name === project)?.color || "#6b7280"
             const rgb = this.hexToRgb(projectColor)
-            
+
             // Project color indicator
             if (rgb) {
               this.doc.setFillColor(rgb.r, rgb.g, rgb.b)
@@ -429,16 +465,16 @@ export class PDFGenerator {
             this.doc.setTextColor(107, 114, 128)
             this.doc.setFont('helvetica', 'normal')
             this.doc.text(project || "Unassigned", this.margin + 28, this.currentY + 5)
-            
+
             const projectSummary = `${formatHours(data.hours)} | ${formatCurrency(data.billable, currency)}`
             this.doc.text(projectSummary, this.pageWidth - this.margin - 8, this.currentY + 5, { align: 'right' })
-            
+
             this.currentY += 12
           }
           this.currentY += 3
         }
       }
-      
+
       this.currentY += 8
     }
 
@@ -459,7 +495,7 @@ export class PDFGenerator {
       // Table header
       this.doc.setFillColor(241, 245, 249) // #f1f5f9
       this.doc.rect(this.margin, this.currentY, this.pageWidth - 2 * this.margin, 14, 'F')
-      
+
       this.doc.setFontSize(9)
       this.doc.setTextColor(71, 85, 105)
       this.doc.setFont('helvetica', 'bold')
@@ -467,14 +503,14 @@ export class PDFGenerator {
       this.doc.text('Hours', this.margin + 100, this.currentY + 10)
       this.doc.text('Billable', this.margin + 135, this.currentY + 10)
       this.doc.text('%', this.pageWidth - this.margin - 15, this.currentY + 10, { align: 'right' })
-      
+
       this.currentY += 18
 
       Object.entries(projectHours).forEach(([project, data]) => {
         const percentage = ((data.hours / totalHours) * 100).toFixed(1)
         const projectColor = options.projects.find(p => p.name === project)?.color || "#6b7280"
         const rgb = this.hexToRgb(projectColor)
-        
+
         // Color indicator
         if (rgb) {
           this.doc.setFillColor(rgb.r, rgb.g, rgb.b)
@@ -487,25 +523,25 @@ export class PDFGenerator {
         this.doc.text(project || "Unassigned", this.margin + 20, this.currentY)
         this.doc.text(formatHours(data.hours), this.margin + 100, this.currentY)
         this.doc.text(formatCurrency(data.billable, currency), this.margin + 135, this.currentY)
-        
+
         this.doc.setFont('helvetica', 'bold')
         this.doc.text(`${percentage}%`, this.pageWidth - this.margin - 15, this.currentY, { align: 'right' })
-        
+
         // Progress bar
         const barWidth = 40
         const barHeight = 4
         const barX = this.pageWidth - this.margin - 60
         const barY = this.currentY - 3
         const fillWidth = (parseFloat(percentage) / 100) * barWidth
-        
+
         this.doc.setFillColor(226, 232, 240) // #e2e8f0
         this.doc.rect(barX, barY, barWidth, barHeight, 'F')
-        
+
         if (rgb) {
           this.doc.setFillColor(rgb.r, rgb.g, rgb.b)
           this.doc.rect(barX, barY, fillWidth, barHeight, 'F')
         }
-        
+
         this.currentY += 16
       })
     }
@@ -524,29 +560,29 @@ export class PDFGenerator {
   private groupWeeksByMonth(
     weekDates: Array<{ start: string; end: string; dates: string[] }>,
     entries: TimeEntry[]
-  ): Record<string, { 
-    monthName: string; 
-    totalHours: number; 
-    totalBillable: number; 
+  ): Record<string, {
+    monthName: string;
+    totalHours: number;
+    totalBillable: number;
     weeks: Array<{
       weekNumber: number;
       dateRange: string;
       hours: number;
       billable: number;
       projectBreakdown: Record<string, { hours: number; billable: number }>;
-    }> 
+    }>
   }> {
-    const result: Record<string, { 
-      monthName: string; 
-      totalHours: number; 
-      totalBillable: number; 
+    const result: Record<string, {
+      monthName: string;
+      totalHours: number;
+      totalBillable: number;
       weeks: Array<{
         weekNumber: number;
         dateRange: string;
         hours: number;
         billable: number;
         projectBreakdown: Record<string, { hours: number; billable: number }>;
-      }> 
+      }>
     }> = {}
 
     for (const week of weekDates) {
@@ -554,18 +590,18 @@ export class PDFGenerator {
       const weekEndDate = new Date(week.end + "T00:00:00")
       const monthKey = `${weekStartDate.getFullYear()}-${String(weekStartDate.getMonth() + 1).padStart(2, '0')}`
       const monthName = getMonthName(weekStartDate)
-      
+
       // Get entries for this week
-      const weekEntries = entries.filter(entry => 
+      const weekEntries = entries.filter(entry =>
         entry.date >= week.start && entry.date <= week.end
       )
-      
+
       const weekHours = weekEntries.reduce((sum, entry) => sum + entry.duration, 0)
       const weekBillable = weekEntries.reduce((sum, entry) => {
         const rate = entry.billableRate || 0
         return sum + (entry.duration * rate)
       }, 0)
-      
+
       // Calculate project breakdown for this week
       const projectBreakdown: Record<string, { hours: number; billable: number }> = {}
       weekEntries.forEach(entry => {
@@ -576,7 +612,7 @@ export class PDFGenerator {
         projectBreakdown[projectName].hours += entry.duration
         projectBreakdown[projectName].billable += entry.duration * (entry.billableRate || 0)
       })
-      
+
       // Initialize month if not exists
       if (!result[monthKey]) {
         result[monthKey] = {
@@ -586,7 +622,7 @@ export class PDFGenerator {
           weeks: []
         }
       }
-      
+
       result[monthKey].totalHours += weekHours
       result[monthKey].totalBillable += weekBillable
       result[monthKey].weeks.push({
@@ -620,21 +656,27 @@ export class PDFGenerator {
     const weeks: Array<{ start: string; end: string; dates: string[] }> = []
     const start = new Date(startDate + "T00:00:00")
     const end = new Date(endDate + "T00:00:00")
-    
+
     let currentDate = new Date(start)
-    
+
     while (currentDate <= end) {
       const week = getWeekDates(currentDate, weekStartsOn)
       weeks.push(week)
-      
+
       // Move to next week
       currentDate.setDate(currentDate.getDate() + 7)
     }
-    
+
     return weeks
   }
 
   private generateMonthlyView(weekDates: Array<{ start: string; end: string; dates: string[] }>, options: PDFExportOptions) {
+    // Check if we need a new page before starting monthly view
+    if (this.currentY > this.pageHeight - 150) {
+      this.doc.addPage()
+      this.currentY = this.margin
+    }
+
     const dayNames = getWeekDayHeaders(options.weekStartsOn || 'sunday')
     const cellWidth = 25
     const cellHeight = 20
@@ -645,58 +687,58 @@ export class PDFGenerator {
     this.doc.setFontSize(10)
     this.doc.setTextColor(71, 85, 105)
     this.doc.setFont('helvetica', 'bold')
-    
+
     // Day headers
     for (let i = 0; i < 7; i++) {
       const x = startX + (i * cellWidth)
       this.doc.text(dayNames[i], x + 5, startY)
     }
-    
+
     this.currentY = startY + 15
 
     // Draw each week as a row
     for (let weekIndex = 0; weekIndex < weekDates.length; weekIndex++) {
       const week = weekDates[weekIndex]
-      const weekEntries = options.entries.filter(entry => 
+      const weekEntries = options.entries.filter(entry =>
         entry.date >= week.start && entry.date <= week.end
       )
-      
+
       const weekTotalHours = weekEntries.reduce((sum, entry) => sum + entry.duration, 0)
       const dailyHours = this.calculateDailyHours(weekEntries)
-      
+
       // Week background
       this.doc.setFillColor(248, 250, 252) // #f8fafc
       this.doc.rect(startX, this.currentY - 5, cellWidth * 7, cellHeight, 'F')
-      
+
       // Week border
       this.doc.setDrawColor(226, 232, 240) // #e2e8f0
       this.doc.setLineWidth(0.5)
       this.doc.rect(startX, this.currentY - 5, cellWidth * 7, cellHeight, 'S')
-      
+
       // Draw each day in the week
       for (let dayIndex = 0; dayIndex < 7; dayIndex++) {
         const date = week.dates[dayIndex]
         const x = startX + (dayIndex * cellWidth)
         const dayDate = new Date(date + "T00:00:00")
         const hours = dailyHours[date] || 0
-        
+
         // Day cell border
         this.doc.setDrawColor(226, 232, 240)
         this.doc.rect(x, this.currentY - 5, cellWidth, cellHeight, 'S')
-        
+
         // Day number
         this.doc.setFontSize(8)
         this.doc.setTextColor(71, 85, 105)
         this.doc.setFont('helvetica', 'normal')
         this.doc.text(dayDate.getDate().toString(), x + 2, this.currentY + 2)
-        
+
         // Hours if any
         if (hours > 0) {
           this.doc.setFontSize(7)
           this.doc.setTextColor(16, 185, 129) // #10b981
           this.doc.setFont('helvetica', 'bold')
           this.doc.text(formatHours(hours), x + 2, this.currentY + 10)
-          
+
           // Activity intensity indicator
           const intensity = Math.min(hours / 8, 1)
           const color = this.getActivityColor(intensity)
@@ -704,22 +746,53 @@ export class PDFGenerator {
           this.doc.circle(x + cellWidth - 6, this.currentY + 3, 2, 'F')
         }
       }
-      
+
       // Week total on the right
       this.doc.setFontSize(9)
       this.doc.setTextColor(22, 78, 99)
       this.doc.setFont('helvetica', 'bold')
       this.doc.text(`Week ${weekIndex + 1}: ${formatHours(weekTotalHours)}`, startX + (cellWidth * 7) + 10, this.currentY + 8)
-      
+
       this.currentY += cellHeight + 5
-      
+
+      // Show project breakdown for this week if enabled
+      if (options.showProjects && weekEntries.length > 0) {
+        const projectBreakdown = this.calculateProjectHours(weekEntries)
+        if (Object.keys(projectBreakdown).length > 0) {
+          this.currentY += 5
+          Object.entries(projectBreakdown).forEach(([project, projectHours]) => {
+            // Check if we need a new page for project items
+            if (this.currentY > this.pageHeight - 40) {
+              this.doc.addPage()
+              this.currentY = this.margin
+            }
+            this.doc.setFontSize(8)
+            this.doc.setTextColor(107, 114, 128) // #6b7280
+            this.doc.setFont('helvetica', 'normal')
+            this.doc.text(`  • ${project}: ${formatHours(projectHours)}`, startX + 10, this.currentY)
+            this.currentY += 10
+          })
+          this.currentY += 5
+        }
+      }
+
       // Check if we need a new page
       if (this.currentY > this.pageHeight - 80) {
         this.doc.addPage()
         this.currentY = this.margin
+
+        // Redraw calendar header on new page
+        this.doc.setFontSize(10)
+        this.doc.setTextColor(71, 85, 105)
+        this.doc.setFont('helvetica', 'bold')
+        for (let i = 0; i < 7; i++) {
+          const x = startX + (i * cellWidth)
+          this.doc.text(dayNames[i], x + 5, this.currentY)
+        }
+        this.currentY += 15
       }
     }
-    
+
     this.currentY += 15
   }
 
@@ -771,7 +844,7 @@ export async function exportToPDF(options: PDFExportOptions): Promise<void> {
   const url = URL.createObjectURL(pdfBlob)
   const link = document.createElement("a")
   link.href = url
-  
+
   // Generate filename with user name if available
   let filename = `time-report-${options.startDate}-to-${options.endDate}-${options.style}`
   if (options.userSettings?.firstName || options.userSettings?.lastName) {
@@ -780,7 +853,7 @@ export async function exportToPDF(options: PDFExportOptions): Promise<void> {
       filename = `${fullName.replace(/\s+/g, '-')}-time-report-${options.startDate}-to-${options.endDate}-${options.style}`
     }
   }
-  
+
   link.download = `${filename}.pdf`
   document.body.appendChild(link)
   link.click()
