@@ -11,7 +11,8 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Badge } from "@/components/ui/badge"
-import { FileText, Download, CalendarIcon, Loader2 } from "lucide-react"
+import { FileText, Download, CalendarIcon, Loader2, ChevronsUpDown } from "lucide-react"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import { db, type TimeEntry, type Project, getUserSettings } from "@/lib/database"
 import { exportToPDF } from "@/lib/pdf-generator"
 import { formatDate, formatHours, formatCurrency } from "@/lib/utils/date-helpers"
@@ -32,12 +33,18 @@ export function ExportDialog({ children, defaultStartDate, defaultEndDate }: Exp
   const [showProjects, setShowProjects] = useState(false)
   const [entries, setEntries] = useState<TimeEntry[]>([])
   const [projects, setProjects] = useState<Project[]>([])
+  const [selectedProjects, setSelectedProjects] = useState<string[]>([])
   const [previewData, setPreviewData] = useState<{
     totalHours: number
     totalBillable: number
     workingDays: number
     projectBreakdown: { [project: string]: { hours: number; billable: number } }
-  } | null>(null)
+  }>({
+    totalHours: 0,
+    totalBillable: 0,
+    workingDays: 0,
+    projectBreakdown: {}
+  })
   const [companySettings, setCompanySettings] = useState<any>(null)
   const [userSettings, setUserSettings] = useState<any>(null)
 
@@ -45,9 +52,20 @@ export function ExportDialog({ children, defaultStartDate, defaultEndDate }: Exp
     if (isOpen) {
       loadCompanySettings()
       loadUserSettings()
-      loadPreviewData()
+      loadData()
     }
   }, [isOpen, startDate, endDate])
+
+  // Calculate distinct available projects based on definition + usage
+  const availableProjects = Array.from(new Set([
+    ...projects.map(p => p.name),
+    ...entries.map(e => e.project || "Unassigned")
+  ])).sort()
+
+  // Update preview when dependencies change
+  useEffect(() => {
+    calculatePreview()
+  }, [entries, selectedProjects])
 
   const loadCompanySettings = async () => {
     try {
@@ -67,7 +85,7 @@ export function ExportDialog({ children, defaultStartDate, defaultEndDate }: Exp
     }
   }
 
-  const loadPreviewData = async () => {
+  const loadData = async () => {
     try {
       const [entriesData, projectsData] = await Promise.all([
         db.getTimeEntries(formatDate(startDate), formatDate(endDate)),
@@ -77,28 +95,42 @@ export function ExportDialog({ children, defaultStartDate, defaultEndDate }: Exp
       setEntries(entriesData)
       setProjects(projectsData)
 
-      // Calculate preview statistics
-      const totalHours = entriesData.reduce((sum, entry) => sum + entry.duration, 0)
-      const totalBillable = entriesData.reduce((sum, entry) => {
-        const rate = entry.billableRate || 0
-        return sum + (entry.duration * rate)
-      }, 0)
-      const workingDays = new Set(entriesData.map((e) => e.date)).size
-      const projectBreakdown: { [project: string]: { hours: number; billable: number } } = {}
-
-      entriesData.forEach((entry) => {
-        const project = entry.project || "Unassigned"
-        if (!projectBreakdown[project]) {
-          projectBreakdown[project] = { hours: 0, billable: 0 }
-        }
-        projectBreakdown[project].hours += entry.duration
-        projectBreakdown[project].billable += entry.duration * (entry.billableRate || 0)
-      })
-
-      setPreviewData({ totalHours, totalBillable, workingDays, projectBreakdown })
+      // By default select all available projects when data loads
+      const allProjects = Array.from(new Set([
+        ...projectsData.map(p => p.name),
+        ...entriesData.map(e => e.project || "Unassigned")
+      ]))
+      setSelectedProjects(allProjects)
     } catch (error) {
-      console.error("Failed to load preview data:", error)
+      console.error("Failed to load data:", error)
     }
+  }
+
+  const calculatePreview = () => {
+    // Filter entries based on selection
+    const filteredEntries = entries.filter((entry) =>
+      selectedProjects.includes(entry.project || "Unassigned")
+    )
+
+    // Calculate statistics
+    const totalHours = filteredEntries.reduce((sum, entry) => sum + entry.duration, 0)
+    const totalBillable = filteredEntries.reduce((sum, entry) => {
+      const rate = entry.billableRate || 0
+      return sum + (entry.duration * rate)
+    }, 0)
+    const workingDays = new Set(filteredEntries.map((e) => e.date)).size
+    const projectBreakdown: { [project: string]: { hours: number; billable: number } } = {}
+
+    filteredEntries.forEach((entry) => {
+      const project = entry.project || "Unassigned"
+      if (!projectBreakdown[project]) {
+        projectBreakdown[project] = { hours: 0, billable: 0 }
+      }
+      projectBreakdown[project].hours += entry.duration
+      projectBreakdown[project].billable += entry.duration * (entry.billableRate || 0)
+    })
+
+    setPreviewData({ totalHours, totalBillable, workingDays, projectBreakdown })
   }
 
   const handleExport = async () => {
@@ -106,10 +138,14 @@ export function ExportDialog({ children, defaultStartDate, defaultEndDate }: Exp
 
     setIsExporting(true)
     try {
+      const filteredEntries = entries.filter((entry) =>
+        selectedProjects.includes(entry.project || "Unassigned")
+      )
+
       await exportToPDF({
         startDate: formatDate(startDate),
         endDate: formatDate(endDate),
-        entries,
+        entries: filteredEntries,
         projects,
         style: exportStyle,
         showProjects,
@@ -205,6 +241,67 @@ export function ExportDialog({ children, defaultStartDate, defaultEndDate }: Exp
             </div>
           </div>
 
+          {/* Project Selection */}
+          <div className="space-y-2">
+            <Label>Projects</Label>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" role="combobox" className="w-full justify-between font-normal">
+                  {selectedProjects.length === 0
+                    ? "Select projects..."
+                    : selectedProjects.length === availableProjects.length
+                      ? "All Projects"
+                      : `${selectedProjects.length} selected`}
+                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[400px] p-0" align="start">
+                <div className="p-2 border-b">
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="select-all"
+                      checked={selectedProjects.length === availableProjects.length && availableProjects.length > 0}
+                      onCheckedChange={(checked) => {
+                        if (checked) setSelectedProjects(availableProjects)
+                        else setSelectedProjects([])
+                      }}
+                    />
+                    <Label htmlFor="select-all" className="font-normal cursor-pointer">Select All </Label>
+                  </div>
+                </div>
+                <ScrollArea className="h-[200px]">
+                  <div className="p-2 space-y-2">
+                    {availableProjects.map((project) => (
+                      <div key={project} className="flex items-center space-x-2">
+                        <Checkbox
+                          id={`project-${project}`}
+                          checked={selectedProjects.includes(project)}
+                          onCheckedChange={(checked) => {
+                            if (checked) {
+                              setSelectedProjects([...selectedProjects, project])
+                            } else {
+                              setSelectedProjects(selectedProjects.filter((p) => p !== project))
+                            }
+                          }}
+                        />
+                        <Label htmlFor={`project-${project}`} className="font-normal cursor-pointer flex items-center gap-2">
+                          <div
+                            className="w-2 h-2 rounded-full"
+                            style={{ backgroundColor: getProjectColor(project) }}
+                          />
+                          {project}
+                        </Label>
+                      </div>
+                    ))}
+                    {availableProjects.length === 0 && (
+                      <div className="text-sm text-muted-foreground p-2">No projects found for this period.</div>
+                    )}
+                  </div>
+                </ScrollArea>
+              </PopoverContent>
+            </Popover>
+          </div>
+
           {/* Export Style */}
           <div className="space-y-2">
             <Label>Export Style</Label>
@@ -245,7 +342,7 @@ export function ExportDialog({ children, defaultStartDate, defaultEndDate }: Exp
           {previewData && (
             <div className="border rounded-lg p-4 bg-muted/30">
               <h4 className="font-medium mb-3">Report Preview</h4>
-              
+
               {/* Report Header Info */}
               {(userSettings || companySettings) && (
                 <div className="mb-4 p-3 bg-background rounded border">
@@ -260,7 +357,7 @@ export function ExportDialog({ children, defaultStartDate, defaultEndDate }: Exp
                   </div>
                 </div>
               )}
-              
+
               <div className="grid grid-cols-4 gap-4 mb-4">
                 <div className="text-center">
                   <div className="text-2xl font-bold text-primary">{formatHours(previewData.totalHours)}</div>
