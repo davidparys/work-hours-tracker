@@ -19,16 +19,16 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { name, color } = body
-    
+    const { name, color, defaultBillableRate } = body
+
     if (!name) {
       return NextResponse.json(
         { error: 'Missing required field: name', success: false },
         { status: 400 }
       )
     }
-    
-    const project = await createProject(name, color || '#164e63')
+
+    const project = await createProject(name, color || '#164e63', defaultBillableRate ?? undefined)
     
     return NextResponse.json({ data: project, success: true }, { status: 201 })
   } catch (error: any) {

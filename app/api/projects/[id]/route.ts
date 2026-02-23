@@ -18,8 +18,8 @@ export async function PATCH(
     }
     
     const body = await request.json()
-    const { name, color } = body
-    
+    const { name, color, defaultBillableRate } = body
+
     // Check if project exists
     const existingProject = await getProjectById(projectId)
     if (!existingProject) {
@@ -28,18 +28,19 @@ export async function PATCH(
         { status: 404 }
       )
     }
-    
-    const updates: { name?: string; color?: string } = {}
+
+    const updates: { name?: string; color?: string; defaultBillableRate?: number | null } = {}
     if (name !== undefined) updates.name = name
     if (color !== undefined) updates.color = color
-    
+    if (defaultBillableRate !== undefined) updates.defaultBillableRate = defaultBillableRate === null ? null : Number(defaultBillableRate)
+
     if (Object.keys(updates).length === 0) {
       return NextResponse.json(
         { error: 'No valid fields to update', success: false },
         { status: 400 }
       )
     }
-    
+
     const project = await updateProject(projectId, updates)
     
     return NextResponse.json({ data: project, success: true })

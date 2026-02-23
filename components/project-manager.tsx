@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Settings, Plus, Trash2, Edit3, Palette } from "lucide-react"
+import { Settings, Plus, Trash2, Edit3, Palette, DollarSign } from "lucide-react"
 import { type Project, db } from "@/lib/database"
 import { cn } from "@/lib/utils"
 
@@ -39,6 +39,7 @@ export function ProjectManager({ children, onProjectsChange }: ProjectManagerPro
   const [newProject, setNewProject] = useState({
     name: "",
     color: PRESET_COLORS[0],
+    defaultBillableRate: "" as string,
   })
 
   useEffect(() => {
@@ -66,10 +67,11 @@ export function ProjectManager({ children, onProjectsChange }: ProjectManagerPro
       const project = await db.addProject({
         name: newProject.name.trim(),
         color: newProject.color,
+        defaultBillableRate: newProject.defaultBillableRate ? parseFloat(newProject.defaultBillableRate) : null,
       })
 
       setProjects([...projects, project])
-      setNewProject({ name: "", color: PRESET_COLORS[0] })
+      setNewProject({ name: "", color: PRESET_COLORS[0], defaultBillableRate: "" })
       setIsAddingProject(false)
       onProjectsChange?.()
     } catch (error) {
@@ -90,6 +92,7 @@ export function ProjectManager({ children, onProjectsChange }: ProjectManagerPro
       const updated = await db.updateProject(editingProject.id, {
         name: editingProject.name.trim(),
         color: editingProject.color,
+        defaultBillableRate: editingProject.defaultBillableRate ?? null,
       })
 
       setProjects(projects.map((p) => (p.id === updated.id ? updated : p)))
@@ -177,6 +180,23 @@ export function ProjectManager({ children, onProjectsChange }: ProjectManagerPro
                   </div>
 
                   <div className="space-y-2">
+                    <Label>Default Billable Rate (optional)</Label>
+                    <div className="relative">
+                      <DollarSign className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        className="pl-7"
+                        placeholder="0.00 per hour"
+                        value={newProject.defaultBillableRate}
+                        onChange={(e) => setNewProject({ ...newProject, defaultBillableRate: e.target.value })}
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground">Prefills the billable rate when this project is selected</p>
+                  </div>
+
+                  <div className="space-y-2">
                     <Label>Color</Label>
                     <ColorPicker
                       selectedColor={newProject.color}
@@ -192,7 +212,7 @@ export function ProjectManager({ children, onProjectsChange }: ProjectManagerPro
                       variant="outline"
                       onClick={() => {
                         setIsAddingProject(false)
-                        setNewProject({ name: "", color: PRESET_COLORS[0] })
+                        setNewProject({ name: "", color: PRESET_COLORS[0], defaultBillableRate: "" })
                       }}
                       size="sm"
                     >
@@ -216,6 +236,28 @@ export function ProjectManager({ children, onProjectsChange }: ProjectManagerPro
                       onChange={(e) => setEditingProject({ ...editingProject, name: e.target.value })}
                       onKeyDown={(e) => e.key === "Enter" && handleUpdateProject()}
                     />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Default Billable Rate (optional)</Label>
+                    <div className="relative">
+                      <DollarSign className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        className="pl-7"
+                        placeholder="0.00 per hour"
+                        value={editingProject.defaultBillableRate ?? ""}
+                        onChange={(e) =>
+                          setEditingProject({
+                            ...editingProject,
+                            defaultBillableRate: e.target.value ? parseFloat(e.target.value) : null,
+                          })
+                        }
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground">Prefills the billable rate when this project is selected</p>
                   </div>
 
                   <div className="space-y-2">
@@ -258,9 +300,12 @@ export function ProjectManager({ children, onProjectsChange }: ProjectManagerPro
                       <div className="flex items-center gap-3">
                         <div className="w-4 h-4 rounded-full border" style={{ backgroundColor: project.color }} />
                         <span className="font-medium">{project.name}</span>
-                        <Badge variant="outline" className="text-xs">
-                          {project.color}
-                        </Badge>
+                        {project.defaultBillableRate != null && (
+                          <Badge variant="secondary" className="text-xs gap-1">
+                            <DollarSign className="h-3 w-3" />
+                            {project.defaultBillableRate}/hr
+                          </Badge>
+                        )}
                       </div>
 
                       <div className="flex items-center gap-2">
