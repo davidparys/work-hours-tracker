@@ -18,6 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { User } from "lucide-react"
 import { getUserSettings, saveUserSettings } from "@/lib/database"
+import { useCurrency } from "@/lib/context/currency-context"
 
 interface PersonalSettingsProps {
   children: React.ReactNode
@@ -55,6 +56,7 @@ const CURRENCIES = [
 ]
 
 export function PersonalSettings({ children, onSettingsChange }: PersonalSettingsProps) {
+  const { invalidate: invalidateCurrency } = useCurrency()
   const [open, setOpen] = useState(false)
   const [settings, setSettings] = useState<UserSettings>({
     firstName: "",
@@ -85,6 +87,7 @@ export function PersonalSettings({ children, onSettingsChange }: PersonalSetting
     setIsLoading(true)
     try {
       await saveUserSettings(settings)
+      invalidateCurrency()
       onSettingsChange?.()
       setOpen(false)
     } catch (error) {

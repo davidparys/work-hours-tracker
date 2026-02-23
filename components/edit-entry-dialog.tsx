@@ -7,16 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { type TimeEntry, type Project, db } from "@/lib/database"
-
-// Currency symbols mapping
-const CURRENCY_SYMBOLS: Record<string, string> = {
-  'USD': '$',
-  'EUR': '€',
-  'GBP': '£',
-  'CAD': 'C$',
-  'AUD': 'A$',
-  'CHF': 'Fr.',
-}
+import { useCurrency } from "@/lib/context/currency-context"
 
 interface EditEntryDialogProps {
   entry: TimeEntry | null
@@ -24,10 +15,10 @@ interface EditEntryDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   onEntryUpdated: () => void
-  currency?: string
 }
 
-export function EditEntryDialog({ entry, projects, open, onOpenChange, onEntryUpdated, currency = 'USD' }: EditEntryDialogProps) {
+export function EditEntryDialog({ entry, projects, open, onOpenChange, onEntryUpdated }: EditEntryDialogProps) {
+  const { symbol: currencySymbol } = useCurrency()
   const [formData, setFormData] = useState<{
     startHour: number
     endHour: number
@@ -154,7 +145,7 @@ export function EditEntryDialog({ entry, projects, open, onOpenChange, onEntryUp
             <label className="text-sm font-medium mb-2 block">Billable Rate (per hour)</label>
             <div className="relative">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-                {CURRENCY_SYMBOLS[currency] || currency}
+                {currencySymbol}
               </span>
               <Input
                 type="number"

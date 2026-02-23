@@ -15,7 +15,8 @@ import { FileText, Download, CalendarIcon, Loader2, ChevronsUpDown } from "lucid
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { db, type TimeEntry, type Project, getUserSettings } from "@/lib/database"
 import { exportToPDF } from "@/lib/pdf-generator"
-import { formatDate, formatHours, formatCurrency } from "@/lib/utils/date-helpers"
+import { formatDate, formatHours } from "@/lib/utils/date-helpers"
+import { useCurrency } from "@/lib/context/currency-context"
 import { cn } from "@/lib/utils"
 
 interface ExportDialogProps {
@@ -25,6 +26,7 @@ interface ExportDialogProps {
 }
 
 export function ExportDialog({ children, defaultStartDate, defaultEndDate }: ExportDialogProps) {
+  const { currency, formatAmount } = useCurrency()
   const [isOpen, setIsOpen] = useState(false)
   const [isExporting, setIsExporting] = useState(false)
   const [startDate, setStartDate] = useState<Date>(defaultStartDate || new Date())
@@ -150,7 +152,7 @@ export function ExportDialog({ children, defaultStartDate, defaultEndDate }: Exp
         style: exportStyle,
         showProjects,
         weekStartsOn: companySettings?.weekStartsOn || 'sunday',
-        currency: userSettings?.currency || 'USD',
+        currency,
         userSettings: userSettings ? {
           firstName: userSettings.firstName,
           lastName: userSettings.lastName,
@@ -365,7 +367,7 @@ export function ExportDialog({ children, defaultStartDate, defaultEndDate }: Exp
                 </div>
                 <div className="text-center">
                   <div className="text-2xl font-bold text-primary">
-                    {formatCurrency(previewData.totalBillable, userSettings?.currency || 'USD')}
+                    {formatAmount(previewData.totalBillable)}
                   </div>
                   <div className="text-sm text-muted-foreground">Total Billable</div>
                 </div>
@@ -386,7 +388,7 @@ export function ExportDialog({ children, defaultStartDate, defaultEndDate }: Exp
                     {Object.entries(previewData.projectBreakdown).map(([project, data]) => (
                       <Badge key={project} variant="secondary" className="gap-1">
                         <div className="w-2 h-2 rounded-full" style={{ backgroundColor: getProjectColor(project) }} />
-                        {project}: {formatHours(data.hours)} ({formatCurrency(data.billable, userSettings?.currency || 'USD')})
+                        {project}: {formatHours(data.hours)} ({formatAmount(data.billable)})
                       </Badge>
                     ))}
                   </div>

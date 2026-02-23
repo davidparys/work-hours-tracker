@@ -3,6 +3,7 @@ import { GeistSans } from 'geist/font/sans'
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { MigrationPrompt } from "@/components/migration-prompt";
+import { CurrencyProvider } from "@/lib/context/currency-context";
 
 export const metadata: Metadata = {
   title: "Work Hours Tracker",
@@ -23,10 +24,10 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          <>
+          <CurrencyProvider>
             <MigrationPrompt />
             {children}
-          </>
+          </CurrencyProvider>
         </ThemeProvider>
       </body>
     </html>
