@@ -16,6 +16,7 @@ export const projects = pgTable('projects', {
   id: serial('id').primaryKey(),
   name: text('name').notNull().unique(),
   color: text('color').notNull().default('#164e63'),
+  defaultBillableRate: real('default_billable_rate'), // Default hourly rate for this project
   isActive: boolean('is_active').notNull().default(true),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })

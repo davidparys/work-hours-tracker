@@ -58,13 +58,14 @@ export async function getAllProjects(): Promise<SelectProject[]> {
   return allProjects
 }
 
-export async function createProject(name: string, color: string = '#164e63'): Promise<SelectProject> {
+export async function createProject(name: string, color: string = '#164e63', defaultBillableRate?: number): Promise<SelectProject> {
   const [project] = await db.insert(projects).values({
     name,
     color,
+    defaultBillableRate,
     isActive: true,
   }).returning()
-  
+
   return project
 }
 
@@ -73,12 +74,12 @@ export async function getProjectById(id: number): Promise<SelectProject | undefi
   return project
 }
 
-export async function updateProject(id: number, updates: { name?: string; color?: string }): Promise<SelectProject> {
+export async function updateProject(id: number, updates: { name?: string; color?: string; defaultBillableRate?: number | null }): Promise<SelectProject> {
   const [updated] = await db.update(projects)
     .set({ ...updates })
     .where(eq(projects.id, id))
     .returning()
-  
+
   return updated
 }
 

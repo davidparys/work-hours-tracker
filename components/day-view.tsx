@@ -141,26 +141,43 @@ export function DayView({ selectedDate, onDateChange }: DayViewProps) {
           <div className="grid grid-cols-10 gap-2 p-3 bg-muted/20 rounded-lg border border-border/30">
             {allHours.slice(workHourStart, workHourEnd).map((hour) => {
               const status = getHourStatus(hour)
-              const entry = timeEntries.find((e) => hour >= e.startHour && hour < e.endHour)
+              const entries = timeEntries.filter((e) => hour >= e.startHour && hour < e.endHour)
 
               return (
                 <div
                   key={hour}
                   className={cn(
-                    "aspect-square rounded-md border text-xs flex flex-col items-center justify-center cursor-pointer transition-all hover:scale-105",
+                    "aspect-square rounded-md border text-xs flex flex-col items-center justify-center cursor-pointer transition-all hover:scale-105 overflow-hidden",
                     status === "free" && "bg-background hover:bg-muted border-border/50",
-                    status === "busy" && "text-white border-transparent shadow-sm",
+                    status === "busy" && entries.length === 1 && "text-white border-transparent shadow-sm",
+                    status === "busy" && entries.length > 1 && "border-transparent shadow-sm",
                   )}
-                  style={{
-                    backgroundColor: status === "busy" ? getProjectColor(entry?.projectId) : undefined,
-                  }}
-                  title={`${hour}:00 - ${entry ? `${getProjectById(entry.projectId)?.name || "Work"}: ${entry.description || "No description"}` : "Available"}`}
+                  style={entries.length === 1 ? {
+                    backgroundColor: getProjectColor(entries[0]?.projectId),
+                  } : undefined}
+                  title={`${hour}:00 - ${entries.length > 0 ? entries.map(e => `${getProjectById(e.projectId)?.name || "Work"}: ${e.description || "No description"}`).join(", ") : "Available"}`}
                 >
-                  <span className="font-mono text-xs font-medium">{hour}</span>
-                  {entry && (
-                    <span className="text-[10px] opacity-90 truncate w-full text-center">
-                      {getProjectById(entry.projectId)?.name?.slice(0, 2) || "W"}
-                    </span>
+                  {entries.length > 1 ? (
+                    <div className="w-full h-full flex flex-col">
+                      {entries.map((e, i) => (
+                        <div
+                          key={e.id}
+                          className="flex-1 flex items-center justify-center"
+                          style={{ backgroundColor: getProjectColor(e.projectId) }}
+                        >
+                          <span className="font-mono text-[9px] font-medium text-white">{i === 0 ? hour : getProjectById(e.projectId)?.name?.slice(0, 1) || "W"}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <>
+                      <span className="font-mono text-xs font-medium">{hour}</span>
+                      {entries[0] && (
+                        <span className="text-[10px] opacity-90 truncate w-full text-center">
+                          {getProjectById(entries[0].projectId)?.name?.slice(0, 2) || "W"}
+                        </span>
+                      )}
+                    </>
                   )}
                 </div>
               )
@@ -175,22 +192,34 @@ export function DayView({ selectedDate, onDateChange }: DayViewProps) {
             {/* Early Hours (0-8) */}
             {allHours.slice(0, workHourStart).map((hour) => {
               const status = getHourStatus(hour)
-              const entry = timeEntries.find((e) => hour >= e.startHour && hour < e.endHour)
+              const entries = timeEntries.filter((e) => hour >= e.startHour && hour < e.endHour)
 
               return (
                 <div
                   key={hour}
                   className={cn(
-                    "aspect-square rounded border text-xs flex flex-col items-center justify-center cursor-pointer transition-all hover:scale-105 opacity-75",
+                    "aspect-square rounded border text-xs flex flex-col items-center justify-center cursor-pointer transition-all hover:scale-105 opacity-75 overflow-hidden",
                     status === "free" && "bg-muted/30 hover:bg-muted/50 border-border/30",
-                    status === "busy" && "text-white border-transparent shadow-sm opacity-100",
+                    status === "busy" && "border-transparent shadow-sm opacity-100",
                   )}
-                  style={{
-                    backgroundColor: status === "busy" ? getProjectColor(entry?.projectId) : undefined,
-                  }}
-                  title={`${hour}:00 - ${entry ? `${getProjectById(entry.projectId)?.name || "Work"}: ${entry.description || "No description"}` : "Available"}`}
+                  style={entries.length === 1 ? {
+                    backgroundColor: getProjectColor(entries[0]?.projectId),
+                  } : undefined}
+                  title={`${hour}:00 - ${entries.length > 0 ? entries.map(e => `${getProjectById(e.projectId)?.name || "Work"}: ${e.description || "No description"}`).join(", ") : "Available"}`}
                 >
-                  <span className="font-mono text-[10px] font-medium">{hour}</span>
+                  {entries.length > 1 ? (
+                    <div className="w-full h-full flex flex-col">
+                      {entries.map((e) => (
+                        <div
+                          key={e.id}
+                          className="flex-1"
+                          style={{ backgroundColor: getProjectColor(e.projectId) }}
+                        />
+                      ))}
+                    </div>
+                  ) : (
+                    <span className="font-mono text-[10px] font-medium">{hour}</span>
+                  )}
                 </div>
               )
             })}
@@ -198,22 +227,34 @@ export function DayView({ selectedDate, onDateChange }: DayViewProps) {
             {/* Late Hours (18-23) */}
             {allHours.slice(workHourEnd).map((hour) => {
               const status = getHourStatus(hour)
-              const entry = timeEntries.find((e) => hour >= e.startHour && hour < e.endHour)
+              const entries = timeEntries.filter((e) => hour >= e.startHour && hour < e.endHour)
 
               return (
                 <div
                   key={hour}
                   className={cn(
-                    "aspect-square rounded border text-xs flex flex-col items-center justify-center cursor-pointer transition-all hover:scale-105 opacity-75",
+                    "aspect-square rounded border text-xs flex flex-col items-center justify-center cursor-pointer transition-all hover:scale-105 opacity-75 overflow-hidden",
                     status === "free" && "bg-muted/30 hover:bg-muted/50 border-border/30",
-                    status === "busy" && "text-white border-transparent shadow-sm opacity-100",
+                    status === "busy" && "border-transparent shadow-sm opacity-100",
                   )}
-                  style={{
-                    backgroundColor: status === "busy" ? getProjectColor(entry?.projectId) : undefined,
-                  }}
-                  title={`${hour}:00 - ${entry ? `${getProjectById(entry.projectId)?.name || "Work"}: ${entry.description || "No description"}` : "Available"}`}
+                  style={entries.length === 1 ? {
+                    backgroundColor: getProjectColor(entries[0]?.projectId),
+                  } : undefined}
+                  title={`${hour}:00 - ${entries.length > 0 ? entries.map(e => `${getProjectById(e.projectId)?.name || "Work"}: ${e.description || "No description"}`).join(", ") : "Available"}`}
                 >
-                  <span className="font-mono text-[10px] font-medium">{hour}</span>
+                  {entries.length > 1 ? (
+                    <div className="w-full h-full flex flex-col">
+                      {entries.map((e) => (
+                        <div
+                          key={e.id}
+                          className="flex-1"
+                          style={{ backgroundColor: getProjectColor(e.projectId) }}
+                        />
+                      ))}
+                    </div>
+                  ) : (
+                    <span className="font-mono text-[10px] font-medium">{hour}</span>
+                  )}
                 </div>
               )
             })}
@@ -236,8 +277,8 @@ export function DayView({ selectedDate, onDateChange }: DayViewProps) {
             <div className="text-xs font-medium text-muted-foreground mb-2 px-1">Early Hours</div>
             <div className="space-y-1 opacity-75">
               {allHours.slice(0, workHourStart).map((hour) => {
-                const entry = timeEntries.find((e) => hour >= e.startHour && hour < e.endHour)
-                const isOccupied = !!entry
+                const entries = timeEntries.filter((e) => hour >= e.startHour && hour < e.endHour)
+                const isOccupied = entries.length > 0
 
                 return (
                   <div
@@ -247,24 +288,28 @@ export function DayView({ selectedDate, onDateChange }: DayViewProps) {
                       isOccupied ? "bg-card border-border opacity-100" : "bg-muted/20 border-border/30",
                     )}
                   >
-                    <div className="w-12 text-xs font-mono text-muted-foreground">
+                    <div className="w-12 text-xs font-mono text-muted-foreground shrink-0">
                       {hour.toString().padStart(2, "0")}:00
                     </div>
-                    {isOccupied && entry ? (
-                      <div className="flex-1 flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <div
-                            className="w-2 h-2 rounded-full"
-                            style={{ backgroundColor: getProjectColor(entry.projectId) }}
-                          />
-                          <span className="text-sm font-medium">{getProjectById(entry.projectId)?.name || "Work"}</span>
-                          {entry.description && (
-                            <span className="text-xs text-muted-foreground">• {entry.description}</span>
-                          )}
-                        </div>
-                        <Badge variant="secondary" className="text-xs">
-                          {formatHours(entry.duration)}
-                        </Badge>
+                    {isOccupied ? (
+                      <div className="flex-1 flex flex-col gap-1">
+                        {entries.map((entry) => (
+                          <div key={entry.id} className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <div
+                                className="w-2 h-2 rounded-full shrink-0"
+                                style={{ backgroundColor: getProjectColor(entry.projectId) }}
+                              />
+                              <span className="text-sm font-medium">{getProjectById(entry.projectId)?.name || "Work"}</span>
+                              {entry.description && (
+                                <span className="text-xs text-muted-foreground">• {entry.description}</span>
+                              )}
+                            </div>
+                            <Badge variant="secondary" className="text-xs">
+                              {formatHours(entry.duration)}
+                            </Badge>
+                          </div>
+                        ))}
                       </div>
                     ) : (
                       <div className="flex-1 text-xs text-muted-foreground">Available</div>
@@ -281,8 +326,8 @@ export function DayView({ selectedDate, onDateChange }: DayViewProps) {
           <div className="text-xs font-medium text-muted-foreground mb-2 px-1">Core Work Hours</div>
           <div className="space-y-1 p-3 bg-muted/20 rounded-lg border border-border/30">
             {allHours.slice(workHourStart, workHourEnd).map((hour) => {
-              const entry = timeEntries.find((e) => hour >= e.startHour && hour < e.endHour)
-              const isOccupied = !!entry
+              const entries = timeEntries.filter((e) => hour >= e.startHour && hour < e.endHour)
+              const isOccupied = entries.length > 0
 
               return (
                 <div
@@ -292,25 +337,29 @@ export function DayView({ selectedDate, onDateChange }: DayViewProps) {
                     isOccupied ? "bg-background border-border" : "bg-background/50 border-border/50",
                   )}
                 >
-                  <div className="w-16 text-sm font-mono text-muted-foreground">
+                  <div className="w-16 text-sm font-mono text-muted-foreground shrink-0">
                     {hour.toString().padStart(2, "0")}:00
                   </div>
 
-                  {isOccupied && entry ? (
-                    <div className="flex-1 flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div
-                          className="w-3 h-3 rounded-full"
-                          style={{ backgroundColor: getProjectColor(entry.projectId) }}
-                        />
-                        <span className="font-medium">{getProjectById(entry.projectId)?.name || "Work"}</span>
-                        {entry.description && (
-                          <span className="text-sm text-muted-foreground">• {entry.description}</span>
-                        )}
-                      </div>
-                      <Badge variant="secondary" className="text-xs">
-                        {formatHours(entry.duration)}
-                      </Badge>
+                  {isOccupied ? (
+                    <div className="flex-1 flex flex-col gap-1">
+                      {entries.map((entry) => (
+                        <div key={entry.id} className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div
+                              className="w-3 h-3 rounded-full shrink-0"
+                              style={{ backgroundColor: getProjectColor(entry.projectId) }}
+                            />
+                            <span className="font-medium">{getProjectById(entry.projectId)?.name || "Work"}</span>
+                            {entry.description && (
+                              <span className="text-sm text-muted-foreground">• {entry.description}</span>
+                            )}
+                          </div>
+                          <Badge variant="secondary" className="text-xs">
+                            {formatHours(entry.duration)}
+                          </Badge>
+                        </div>
+                      ))}
                     </div>
                   ) : (
                     <div className="flex-1 text-sm text-muted-foreground">Available</div>
@@ -327,8 +376,8 @@ export function DayView({ selectedDate, onDateChange }: DayViewProps) {
             <div className="text-xs font-medium text-muted-foreground mb-2 px-1">Late Hours</div>
             <div className="space-y-1 opacity-75">
               {allHours.slice(workHourEnd).map((hour) => {
-                const entry = timeEntries.find((e) => hour >= e.startHour && hour < e.endHour)
-                const isOccupied = !!entry
+                const entries = timeEntries.filter((e) => hour >= e.startHour && hour < e.endHour)
+                const isOccupied = entries.length > 0
 
                 return (
                   <div
@@ -338,24 +387,28 @@ export function DayView({ selectedDate, onDateChange }: DayViewProps) {
                       isOccupied ? "bg-card border-border opacity-100" : "bg-muted/20 border-border/30",
                     )}
                   >
-                    <div className="w-12 text-xs font-mono text-muted-foreground">
+                    <div className="w-12 text-xs font-mono text-muted-foreground shrink-0">
                       {hour.toString().padStart(2, "0")}:00
                     </div>
-                    {isOccupied && entry ? (
-                      <div className="flex-1 flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <div
-                            className="w-2 h-2 rounded-full"
-                            style={{ backgroundColor: getProjectColor(entry.projectId) }}
-                          />
-                          <span className="text-sm font-medium">{getProjectById(entry.projectId)?.name || "Work"}</span>
-                          {entry.description && (
-                            <span className="text-xs text-muted-foreground">• {entry.description}</span>
-                          )}
-                        </div>
-                        <Badge variant="secondary" className="text-xs">
-                          {formatHours(entry.duration)}
-                        </Badge>
+                    {isOccupied ? (
+                      <div className="flex-1 flex flex-col gap-1">
+                        {entries.map((entry) => (
+                          <div key={entry.id} className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <div
+                                className="w-2 h-2 rounded-full shrink-0"
+                                style={{ backgroundColor: getProjectColor(entry.projectId) }}
+                              />
+                              <span className="text-sm font-medium">{getProjectById(entry.projectId)?.name || "Work"}</span>
+                              {entry.description && (
+                                <span className="text-xs text-muted-foreground">• {entry.description}</span>
+                              )}
+                            </div>
+                            <Badge variant="secondary" className="text-xs">
+                              {formatHours(entry.duration)}
+                            </Badge>
+                          </div>
+                        ))}
                       </div>
                     ) : (
                       <div className="flex-1 text-xs text-muted-foreground">Available</div>
@@ -513,7 +566,15 @@ export function DayView({ selectedDate, onDateChange }: DayViewProps) {
                   <label className="text-sm font-medium mb-2 block">Project</label>
                   <Select
                     value={newEntry.projectId?.toString() || ""}
-                    onValueChange={(value) => setNewEntry({ ...newEntry, projectId: value ? Number(value) : undefined })}
+                    onValueChange={(value) => {
+                      const selectedProject = value ? projects.find((p) => p.id === Number(value)) : undefined
+                      const projectRate = selectedProject?.defaultBillableRate ?? undefined
+                      setNewEntry((prev) => ({
+                        ...prev,
+                        projectId: value ? Number(value) : undefined,
+                        billableRate: projectRate !== undefined ? projectRate : (defaultBillableRate ?? prev.billableRate),
+                      }))
+                    }}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Select project (optional)" />
@@ -545,11 +606,15 @@ export function DayView({ selectedDate, onDateChange }: DayViewProps) {
                       placeholder={defaultBillableRate ? defaultBillableRate.toString() : "0.00"}
                     />
                   </div>
-                  {defaultBillableRate && (
+                  {newEntry.projectId && projects.find((p) => p.id === newEntry.projectId)?.defaultBillableRate != null ? (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Project rate: {formatCurrency(projects.find((p) => p.id === newEntry.projectId)!.defaultBillableRate!, currency)}/hr
+                    </p>
+                  ) : defaultBillableRate ? (
                     <p className="text-xs text-muted-foreground mt-1">
                       Default rate: {formatCurrency(defaultBillableRate, currency)}/hr
                     </p>
-                  )}
+                  ) : null}
                 </div>
 
                 <div className="mb-4">

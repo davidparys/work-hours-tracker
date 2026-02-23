@@ -85,7 +85,16 @@ export function BulkEntryDialog({ projects, onEntriesAdded, children }: BulkEntr
 
   const updateHourAssignment = (index: number, field: keyof HourAssignment, value: any) => {
     setHourAssignments((prev) =>
-      prev.map((assignment, i) => (i === index ? { ...assignment, [field]: value } : assignment)),
+      prev.map((assignment, i) => {
+        if (i !== index) return assignment
+        const updated = { ...assignment, [field]: value }
+        // When project changes, prefill billable rate from project rate → user default
+        if (field === "projectId") {
+          const selectedProject = value ? projects.find((p) => p.id === value) : undefined
+          updated.billableRate = selectedProject?.defaultBillableRate ?? userSettings?.defaultBillableRate ?? assignment.billableRate
+        }
+        return updated
+      }),
     )
   }
 
@@ -341,9 +350,17 @@ export function BulkEntryDialog({ projects, onEntriesAdded, children }: BulkEntr
                   </div>
                   <div className="grid grid-cols-12 gap-2 items-center">
                     <div className="col-span-5">
-                      <Select 
-                        value={bulkProjectId?.toString() || ""} 
-                        onValueChange={(val) => setBulkProjectId(val ? Number(val) : undefined)}
+                      <Select
+                        value={bulkProjectId?.toString() || ""}
+                        onValueChange={(val) => {
+                          const selectedProject = val ? projects.find((p) => p.id === Number(val)) : undefined
+                          setBulkProjectId(val ? Number(val) : undefined)
+                          if (selectedProject?.defaultBillableRate != null) {
+                            setBulkBillableRate(selectedProject.defaultBillableRate)
+                          } else {
+                            setBulkBillableRate(userSettings?.defaultBillableRate)
+                          }
+                        }}
                       >
                         <SelectTrigger className="h-8">
                           <SelectValue placeholder="Select project" />

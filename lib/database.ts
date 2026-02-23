@@ -19,6 +19,7 @@ export interface Project {
   id?: number
   name: string
   color: string
+  defaultBillableRate?: number | null
   isActive?: boolean
   createdAt?: string
 }
@@ -134,7 +135,7 @@ class DatabaseClient {
     return result.data
   }
 
-  async addProject(project: Omit<Project, 'id' | 'createdAt'>): Promise<Project> {
+  async addProject(project: Omit<Project, 'id' | 'isActive' | 'createdAt'>): Promise<Project> {
     const response = await fetch('/api/projects', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -150,7 +151,7 @@ class DatabaseClient {
     return result.data
   }
 
-  async updateProject(id: number, updates: { name?: string; color?: string }): Promise<Project> {
+  async updateProject(id: number, updates: { name?: string; color?: string; defaultBillableRate?: number | null }): Promise<Project> {
     const response = await fetch(`/api/projects/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
