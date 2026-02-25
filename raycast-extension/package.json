@@ -1,0 +1,35 @@
+{
+  "name": "timetracker",
+  "title": "TimeTracker",
+  "description": "Log hours and view monthly activity from anywhere on macOS",
+  "icon": "assets/extension-icon.png",
+  "author": "davidparys",
+  "license": "MIT",
+  "commands": [
+    {
+      "name": "quick-add",
+      "title": "Add Time Entry",
+      "description": "Log hours for a project",
+      "mode": "view"
+    },
+    {
+      "name": "monthly-calendar",
+      "title": "Monthly Calendar",
+      "description": "GitHub-style activity calendar with daily breakdown and filters",
+      "mode": "view"
+    }
+  ],
+  "dependencies": {
+    "@raycast/api": "^1.93.0",
+    "@raycast/utils": "^1.19.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0"
+  },
+  "scripts": {
+    "build": "ray build -e dist",
+    "dev": "ray develop",
+    "lint": "ray lint"
+  }
+}
