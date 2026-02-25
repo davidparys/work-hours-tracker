@@ -19,6 +19,23 @@ interface MonthViewProps {
   onDayClick: (date: Date) => void
 }
 
+const STORAGE_KEY = "month-view-hidden-projects"
+
+function loadHiddenProjects(): Set<number | "none"> {
+  if (typeof window === "undefined") return new Set()
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    if (!raw) return new Set()
+    return new Set(JSON.parse(raw) as (number | "none")[])
+  } catch {
+    return new Set()
+  }
+}
+
+function saveHiddenProjects(ids: Set<number | "none">) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify([...ids]))
+}
+
 export function MonthView({ selectedDate, onDateChange, onDayClick }: MonthViewProps) {
   const [entries, setEntries] = useState<TimeEntry[]>([])
   const [projects, setProjects] = useState<Project[]>([])
@@ -26,6 +43,20 @@ export function MonthView({ selectedDate, onDateChange, onDayClick }: MonthViewP
   const [companySettings, setCompanySettings] = useState<any>(null)
   const [userSettings, setUserSettings] = useState<any>(null)
   const [selectedProjectId, setSelectedProjectId] = useState<number | undefined>(undefined)
+  const [hiddenProjectIds, setHiddenProjectIds] = useState<Set<number | "none">>(loadHiddenProjects)
+
+  const toggleProjectVisibility = (projectId: number | "none") => {
+    setHiddenProjectIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(projectId)) {
+        next.delete(projectId)
+      } else {
+        next.add(projectId)
+      }
+      saveHiddenProjects(next)
+      return next
+    })
+  }
 
   const monthDates = getMonthDates(selectedDate)
 
@@ -73,16 +104,22 @@ export function MonthView({ selectedDate, onDateChange, onDayClick }: MonthViewP
     ? entries.filter((e) => e.projectId === selectedProjectId)
     : entries
 
-  // Calculate monthly data for calendar grid
+  // Exclude hidden projects from heatmap and stats
+  const visibleEntries = filteredEntries.filter((e) => {
+    const key: number | "none" = e.projectId ?? "none"
+    return !hiddenProjectIds.has(key)
+  })
+
+  // Calculate monthly data for calendar grid (visible projects only)
   const monthlyData: { [date: string]: number } = {}
-  filteredEntries.forEach((entry) => {
+  visibleEntries.forEach((entry) => {
     monthlyData[entry.date] = (monthlyData[entry.date] || 0) + entry.duration
   })
 
   const totalMonthHours = Object.values(monthlyData).reduce((sum, hours) => sum + hours, 0)
   const workingDays = Object.values(monthlyData).filter((hours) => hours > 0).length
 
-  // Calculate project breakdown
+  // Calculate project breakdown (all projects, visibility handled in component)
   const projectBreakdown = projects.map(project => {
     const projectEntries = entries.filter(e => e.projectId === project.id)
     const hours = projectEntries.reduce((sum, e) => sum + e.duration, 0)
@@ -90,7 +127,8 @@ export function MonthView({ selectedDate, onDateChange, onDayClick }: MonthViewP
     return {
       projectId: project.id,
       hours,
-      earnings
+      earnings,
+      effectiveRate: hours > 0 ? earnings / hours : undefined,
     }
   }).filter(p => p.hours > 0)
 
@@ -102,11 +140,12 @@ export function MonthView({ selectedDate, onDateChange, onDayClick }: MonthViewP
     projectBreakdown.push({
       projectId: undefined,
       hours,
-      earnings
+      earnings,
+      effectiveRate: hours > 0 ? earnings / hours : undefined,
     })
   }
 
-  const totalEarnings = entries.reduce((sum, e) => sum + (e.duration * (e.billableRate || 0)), 0)
+  const totalEarnings = visibleEntries.reduce((sum, e) => sum + (e.duration * (e.billableRate || 0)), 0)
 
   const getActivityColor = (hours: number): string => {
     const level = getActivityLevel(hours)
@@ -196,6 +235,9 @@ export function MonthView({ selectedDate, onDateChange, onDayClick }: MonthViewP
           <p className="text-sm text-muted-foreground mt-1">
             {formatHours(totalMonthHours)} logged • {workingDays} working days •{" "}
             {formatHours(workingDays > 0 ? totalMonthHours / workingDays : 0)} avg per day
+            {hiddenProjectIds.size > 0 && (
+              <span className="ml-1 text-muted-foreground/60">({hiddenProjectIds.size} project{hiddenProjectIds.size > 1 ? "s" : ""} hidden)</span>
+            )}
           </p>
         </div>
         <DateNavigator
@@ -325,6 +367,8 @@ export function MonthView({ selectedDate, onDateChange, onDayClick }: MonthViewP
             data={projectBreakdown}
             totalHours={entries.reduce((sum, e) => sum + e.duration, 0)}
             totalEarnings={totalEarnings}
+            hiddenProjectIds={hiddenProjectIds}
+            onToggleProject={toggleProjectVisibility}
           />
         </div>
       </div>

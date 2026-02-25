@@ -22,16 +22,19 @@ interface BulkEditDialogProps {
   children: React.ReactNode
 }
 
-export function BulkEditDialog({ 
-  entries, 
-  projects, 
-  periodLabel, 
-  onEntriesUpdated, 
-  children 
+export function BulkEditDialog({
+  entries,
+  projects,
+  periodLabel,
+  onEntriesUpdated,
+  children
 }: BulkEditDialogProps) {
   const [open, setOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [userSettings, setUserSettings] = useState<any>(null)
+
+  // Project scope filter (which entries to edit)
+  const [scopeProjectId, setScopeProjectId] = useState<string>("all")
 
   // Form state
   const [updateBillableRate, setUpdateBillableRate] = useState(true)
@@ -41,6 +44,18 @@ export function BulkEditDialog({
   const [billableRate, setBillableRate] = useState<string>("")
   const [projectId, setProjectId] = useState<string>("")
   const [description, setDescription] = useState("")
+
+  // Projects that actually have entries in this period
+  const activeProjectIds = new Set(entries.map((e) => e.projectId).filter((id) => id !== undefined))
+  const periodProjects = projects.filter((p) => activeProjectIds.has(p.id))
+  const hasMixedProjects = periodProjects.length > 1 || (periodProjects.length >= 1 && entries.some((e) => !e.projectId))
+
+  // Entries scoped to the selected project filter
+  const scopedEntries = scopeProjectId === "all"
+    ? entries
+    : scopeProjectId === "no-project"
+    ? entries.filter((e) => !e.projectId)
+    : entries.filter((e) => e.projectId === Number(scopeProjectId))
 
   useEffect(() => {
     const loadSettings = async () => {
@@ -57,11 +72,11 @@ export function BulkEditDialog({
     loadSettings()
   }, [])
 
-  // Calculate summary stats
-  const totalHours = entries.reduce((sum, e) => sum + e.duration, 0)
-  const entriesWithBillableRate = entries.filter(e => e.billableRate && e.billableRate > 0).length
-  const entriesWithoutBillableRate = entries.length - entriesWithBillableRate
-  const currentEarnings = entries.reduce((sum, e) => sum + (e.duration * (e.billableRate || 0)), 0)
+  // Calculate summary stats based on scoped entries
+  const totalHours = scopedEntries.reduce((sum, e) => sum + e.duration, 0)
+  const entriesWithBillableRate = scopedEntries.filter(e => e.billableRate && e.billableRate > 0).length
+  const entriesWithoutBillableRate = scopedEntries.length - entriesWithBillableRate
+  const currentEarnings = scopedEntries.reduce((sum, e) => sum + (e.duration * (e.billableRate || 0)), 0)
 
   // Calculate projected earnings if billable rate is applied
   const projectedEarnings = updateBillableRate && billableRate 
@@ -69,21 +84,21 @@ export function BulkEditDialog({
     : currentEarnings
 
   const handleApply = async () => {
-    if (entries.length === 0) {
+    if (scopedEntries.length === 0) {
       alert("No entries to update")
       return
     }
 
     const updates: { billableRate?: number; projectId?: number; description?: string } = {}
-    
+
     if (updateBillableRate && billableRate) {
       updates.billableRate = parseFloat(billableRate)
     }
-    
+
     if (updateProject && projectId) {
       updates.projectId = projectId === "no-project" ? undefined : Number(projectId)
     }
-    
+
     if (updateDescription) {
       updates.description = description || undefined
     }
@@ -96,13 +111,14 @@ export function BulkEditDialog({
     setIsLoading(true)
 
     try {
-      const entryIds = entries.map(e => e.id!).filter(id => id !== undefined)
-      const updatedCount = await db.batchUpdateTimeEntries(entryIds, updates)
-      
+      const entryIds = scopedEntries.map(e => e.id!).filter(id => id !== undefined)
+      await db.batchUpdateTimeEntries(entryIds, updates)
+
       onEntriesUpdated()
       setOpen(false)
-      
+
       // Reset form
+      setScopeProjectId("all")
       setUpdateBillableRate(true)
       setUpdateProject(false)
       setUpdateDescription(false)
@@ -119,8 +135,8 @@ export function BulkEditDialog({
     }
   }
 
-  const canApply = (updateBillableRate && billableRate) || 
-                   (updateProject && projectId) || 
+  const canApply = (updateBillableRate && billableRate) ||
+                   (updateProject && projectId) ||
                    updateDescription
 
   return (
@@ -135,13 +151,45 @@ export function BulkEditDialog({
         </DialogHeader>
 
         <div className="space-y-6">
+          {/* Project scope selector */}
+          {hasMixedProjects && (
+            <div className="space-y-1.5">
+              <Label className="text-sm font-medium">Edit entries for</Label>
+              <Select value={scopeProjectId} onValueChange={setScopeProjectId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="All projects" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All projects ({entries.length} entries)</SelectItem>
+                  {periodProjects.map((project) => {
+                    const count = entries.filter((e) => e.projectId === project.id).length
+                    return (
+                      <SelectItem key={project.id} value={project.id!.toString()}>
+                        <div className="flex items-center gap-2">
+                          <div className="w-3 h-3 rounded-full" style={{ backgroundColor: project.color }} />
+                          {project.name}
+                          <span className="text-muted-foreground text-xs">({count})</span>
+                        </div>
+                      </SelectItem>
+                    )
+                  })}
+                  {entries.some((e) => !e.projectId) && (
+                    <SelectItem value="no-project">
+                      No project ({entries.filter((e) => !e.projectId).length} entries)
+                    </SelectItem>
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
           {/* Summary */}
           <div className="p-4 bg-muted/30 rounded-lg border border-border/50 space-y-2">
             <div className="text-sm font-medium">{periodLabel}</div>
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div>
                 <span className="text-muted-foreground">Total Entries:</span>{" "}
-                <span className="font-medium">{entries.length}</span>
+                <span className="font-medium">{scopedEntries.length}</span>
               </div>
               <div>
                 <span className="text-muted-foreground">Total Hours:</span>{" "}
@@ -160,10 +208,10 @@ export function BulkEditDialog({
             </div>
           </div>
 
-          {entries.length === 0 ? (
+          {scopedEntries.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
-              <p>No entries found for this period.</p>
-              <p className="text-sm mt-1">Add some time entries first.</p>
+              <p>No entries found{scopeProjectId !== "all" ? " for this project" : " for this period"}.</p>
+              {scopeProjectId === "all" && <p className="text-sm mt-1">Add some time entries first.</p>}
             </div>
           ) : (
             <>
@@ -287,11 +335,11 @@ export function BulkEditDialog({
           <Button variant="outline" onClick={() => setOpen(false)} disabled={isLoading}>
             Cancel
           </Button>
-          <Button 
-            onClick={handleApply} 
-            disabled={isLoading || entries.length === 0 || !canApply}
+          <Button
+            onClick={handleApply}
+            disabled={isLoading || scopedEntries.length === 0 || !canApply}
           >
-            {isLoading ? "Updating..." : `Update ${entries.length} Entries`}
+            {isLoading ? "Updating..." : `Update ${scopedEntries.length} Entries`}
           </Button>
         </DialogFooter>
       </DialogContent>
