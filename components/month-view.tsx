@@ -320,12 +320,11 @@ export function MonthView({ selectedDate, onDateChange, onDayClick }: MonthViewP
         </div>
 
         <div>
-          <ProjectBreakdown 
-            projects={projects} 
-            data={projectBreakdown} 
+          <ProjectBreakdown
+            projects={projects}
+            data={projectBreakdown}
             totalHours={entries.reduce((sum, e) => sum + e.duration, 0)}
             totalEarnings={totalEarnings}
-            currency={userSettings?.currency || 'USD'}
           />
         </div>
       </div>

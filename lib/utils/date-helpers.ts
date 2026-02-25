@@ -131,32 +131,8 @@ export function getISOWeekYear(date: Date): number {
   return d.getUTCFullYear()
 }
 
-/**
- * Currency symbols mapping
- */
-const CURRENCY_SYMBOLS: Record<string, string> = {
-  'USD': '$',
-  'EUR': '€',
-  'GBP': '£',
-  'CAD': 'C$',
-  'AUD': 'A$',
-  'CHF': 'Fr.',
-}
-
-/**
- * Format a currency amount with the appropriate symbol.
- * @param amount The numeric amount to format
- * @param currency The currency code (USD, EUR, GBP, etc.)
- * @returns Formatted currency string (e.g., "$1,234.56")
- */
-export function formatCurrency(amount: number, currency: string = 'USD'): string {
-  const symbol = CURRENCY_SYMBOLS[currency] || currency
-  const formattedAmount = amount.toLocaleString('en-US', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })
-  return `${symbol}${formattedAmount}`
-}
+// Re-export from the canonical currency module so existing imports keep working.
+export { formatCurrency, getCurrencySymbol, CURRENCY_SYMBOLS } from "@/lib/utils/currency"
 
 /**
  * Format a date range for display (e.g., "Dec 1 - Dec 7" or "Dec 28 - Jan 3")

@@ -2,7 +2,8 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { type Project } from "@/lib/database"
-import { formatHours, formatCurrency } from "@/lib/utils/date-helpers"
+import { formatHours } from "@/lib/utils/date-helpers"
+import { useCurrency } from "@/lib/context/currency-context"
 import { PieChart } from "lucide-react"
 
 interface ProjectBreakdownProps {
@@ -14,10 +15,11 @@ interface ProjectBreakdownProps {
   }[]
   totalHours: number
   totalEarnings?: number
-  currency?: string
 }
 
-export function ProjectBreakdown({ projects, data, totalHours, totalEarnings, currency = 'USD' }: ProjectBreakdownProps) {
+export function ProjectBreakdown({ projects, data, totalHours, totalEarnings }: ProjectBreakdownProps) {
+  const { formatAmount } = useCurrency()
+
   const getProjectName = (id: number | undefined) => {
     if (!id) return "No Project"
     return projects.find((p) => p.id === id)?.name || "Unknown Project"
@@ -43,7 +45,7 @@ export function ProjectBreakdown({ projects, data, totalHours, totalEarnings, cu
         <div className="space-y-4">
           {sortedData.map((item) => {
             const percentage = totalHours > 0 ? (item.hours / totalHours) * 100 : 0
-            
+
             return (
               <div key={item.projectId || "none"} className="space-y-1">
                 <div className="flex items-center justify-between text-sm">
@@ -58,7 +60,7 @@ export function ProjectBreakdown({ projects, data, totalHours, totalEarnings, cu
                     <span className="text-muted-foreground">{formatHours(item.hours)}</span>
                     {item.earnings !== undefined && (
                       <span className="font-mono text-xs bg-muted/50 px-1.5 py-0.5 rounded">
-                        {formatCurrency(item.earnings, currency)}
+                        {formatAmount(item.earnings)}
                       </span>
                     )}
                   </div>
@@ -86,7 +88,7 @@ export function ProjectBreakdown({ projects, data, totalHours, totalEarnings, cu
             <div className="pt-4 mt-4 border-t border-border/50 flex justify-between items-center">
               <span className="font-medium">Total Earnings</span>
               <span className="text-lg font-bold text-primary">
-                {formatCurrency(totalEarnings, currency)}
+                {formatAmount(totalEarnings)}
               </span>
             </div>
           )}

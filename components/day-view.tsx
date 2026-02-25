@@ -9,17 +9,8 @@ import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { Clock, Plus, Trash2, Zap, LayoutGrid, List, Pencil } from "lucide-react"
 import { type TimeEntry, type Project, db } from "@/lib/database"
-import { formatDate, formatHours, formatCurrency } from "@/lib/utils/date-helpers"
-
-// Currency symbols mapping
-const CURRENCY_SYMBOLS: Record<string, string> = {
-  'USD': '$',
-  'EUR': '€',
-  'GBP': '£',
-  'CAD': 'C$',
-  'AUD': 'A$',
-  'CHF': 'Fr.',
-}
+import { formatDate, formatHours } from "@/lib/utils/date-helpers"
+import { useCurrency } from "@/lib/context/currency-context"
 import { cn } from "@/lib/utils"
 import { BulkEntryDialog } from "./bulk-entry-dialog"
 import { BulkEditDialog } from "./bulk-edit-dialog"
@@ -32,12 +23,12 @@ interface DayViewProps {
 }
 
 export function DayView({ selectedDate, onDateChange }: DayViewProps) {
+  const { currency, formatAmount, symbol: currencySymbol } = useCurrency()
   const [timeEntries, setTimeEntries] = useState<TimeEntry[]>([])
   const [projects, setProjects] = useState<Project[]>([])
   const [isAddingEntry, setIsAddingEntry] = useState(false)
   const [viewMode, setViewMode] = useState<"grid" | "timeline">("timeline")
   const [defaultBillableRate, setDefaultBillableRate] = useState<number | undefined>()
-  const [currency, setCurrency] = useState<string>('USD')
   const [editingEntry, setEditingEntry] = useState<TimeEntry | null>(null)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [newEntry, setNewEntry] = useState({
@@ -64,15 +55,10 @@ export function DayView({ selectedDate, onDateChange }: DayViewProps) {
     setTimeEntries(entries)
     setProjects(projectList)
     setDefaultBillableRate(userSettings.defaultBillableRate)
-    setCurrency(userSettings.currency || 'USD')
     // Set default billable rate for new entries
     if (userSettings.defaultBillableRate && !newEntry.billableRate) {
       setNewEntry(prev => ({ ...prev, billableRate: userSettings.defaultBillableRate }))
     }
-  }
-
-  const getCurrencySymbol = (): string => {
-    return CURRENCY_SYMBOLS[currency] || currency
   }
 
   const handleAddEntry = async () => {
@@ -595,7 +581,7 @@ export function DayView({ selectedDate, onDateChange }: DayViewProps) {
                 <div className="mb-4">
                   <label className="text-sm font-medium mb-2 block">Billable Rate (per hour)</label>
                   <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">{getCurrencySymbol()}</span>
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">{currencySymbol}</span>
                     <Input
                       type="number"
                       step="0.01"
@@ -612,7 +598,7 @@ export function DayView({ selectedDate, onDateChange }: DayViewProps) {
                     </p>
                   ) : defaultBillableRate ? (
                     <p className="text-xs text-muted-foreground mt-1">
-                      Default rate: {formatCurrency(defaultBillableRate, currency)}/hr
+                      Default rate: {formatAmount(defaultBillableRate)}/hr
                     </p>
                   ) : null}
                 </div>
@@ -695,13 +681,12 @@ export function DayView({ selectedDate, onDateChange }: DayViewProps) {
         </CardContent>
       </Card>
 
-      <EditEntryDialog 
-        entry={editingEntry} 
-        projects={projects} 
-        open={isEditDialogOpen} 
-        onOpenChange={setIsEditDialogOpen} 
+      <EditEntryDialog
+        entry={editingEntry}
+        projects={projects}
+        open={isEditDialogOpen}
+        onOpenChange={setIsEditDialogOpen}
         onEntryUpdated={loadData}
-        currency={currency}
       />
     </div>
   )
