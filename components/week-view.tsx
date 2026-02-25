@@ -20,6 +20,23 @@ interface WeekViewProps {
   onDayClick: (date: Date) => void
 }
 
+const STORAGE_KEY = "week-view-hidden-projects"
+
+function loadHiddenProjects(): Set<number | "none"> {
+  if (typeof window === "undefined") return new Set()
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    if (!raw) return new Set()
+    return new Set(JSON.parse(raw) as (number | "none")[])
+  } catch {
+    return new Set()
+  }
+}
+
+function saveHiddenProjects(ids: Set<number | "none">) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify([...ids]))
+}
+
 export function WeekView({ selectedDate, onDateChange, onDayClick }: WeekViewProps) {
   const [entries, setEntries] = useState<TimeEntry[]>([])
   const [projects, setProjects] = useState<Project[]>([])
@@ -27,6 +44,20 @@ export function WeekView({ selectedDate, onDateChange, onDayClick }: WeekViewPro
   const [companySettings, setCompanySettings] = useState<any>(null)
   const [userSettings, setUserSettings] = useState<any>(null)
   const [selectedProjectId, setSelectedProjectId] = useState<number | undefined>(undefined)
+  const [hiddenProjectIds, setHiddenProjectIds] = useState<Set<number | "none">>(loadHiddenProjects)
+
+  const toggleProjectVisibility = (projectId: number | "none") => {
+    setHiddenProjectIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(projectId)) {
+        next.delete(projectId)
+      } else {
+        next.add(projectId)
+      }
+      saveHiddenProjects(next)
+      return next
+    })
+  }
 
   const weekDates = getWeekDates(selectedDate, companySettings?.weekStartsOn || 'sunday')
 
@@ -74,15 +105,21 @@ export function WeekView({ selectedDate, onDateChange, onDayClick }: WeekViewPro
     ? entries.filter((e) => e.projectId === selectedProjectId)
     : entries
 
-  // Calculate weekly data for calendar grid
+  // Exclude hidden projects from heatmap and stats
+  const visibleEntries = filteredEntries.filter((e) => {
+    const key: number | "none" = e.projectId ?? "none"
+    return !hiddenProjectIds.has(key)
+  })
+
+  // Calculate weekly data for calendar grid (visible projects only)
   const weeklyData: { [date: string]: number } = {}
-  filteredEntries.forEach((entry) => {
+  visibleEntries.forEach((entry) => {
     weeklyData[entry.date] = (weeklyData[entry.date] || 0) + entry.duration
   })
 
   const totalWeekHours = Object.values(weeklyData).reduce((sum, hours) => sum + hours, 0)
-  
-  // Calculate project breakdown
+
+  // Calculate project breakdown (all projects, visibility handled in component)
   const projectBreakdown = projects.map(project => {
     const projectEntries = entries.filter(e => e.projectId === project.id)
     const hours = projectEntries.reduce((sum, e) => sum + e.duration, 0)
@@ -90,7 +127,8 @@ export function WeekView({ selectedDate, onDateChange, onDayClick }: WeekViewPro
     return {
       projectId: project.id,
       hours,
-      earnings
+      earnings,
+      effectiveRate: hours > 0 ? earnings / hours : undefined,
     }
   }).filter(p => p.hours > 0)
 
@@ -102,11 +140,12 @@ export function WeekView({ selectedDate, onDateChange, onDayClick }: WeekViewPro
     projectBreakdown.push({
       projectId: undefined,
       hours,
-      earnings
+      earnings,
+      effectiveRate: hours > 0 ? earnings / hours : undefined,
     })
   }
 
-  const totalEarnings = entries.reduce((sum, e) => sum + (e.duration * (e.billableRate || 0)), 0)
+  const totalEarnings = visibleEntries.reduce((sum, e) => sum + (e.duration * (e.billableRate || 0)), 0)
 
   const getActivityColor = (hours: number): string => {
     const level = getActivityLevel(hours)
@@ -158,6 +197,9 @@ export function WeekView({ selectedDate, onDateChange, onDayClick }: WeekViewPro
           </h2>
           <p className="text-sm text-muted-foreground mt-1">
             {formatHours(totalWeekHours)} logged • {formatHours(totalWeekHours / 7)} avg per day
+            {hiddenProjectIds.size > 0 && (
+              <span className="ml-1 text-muted-foreground/60">({hiddenProjectIds.size} project{hiddenProjectIds.size > 1 ? "s" : ""} hidden)</span>
+            )}
           </p>
         </div>
         <DateNavigator
@@ -312,6 +354,8 @@ export function WeekView({ selectedDate, onDateChange, onDayClick }: WeekViewPro
             data={projectBreakdown}
             totalHours={entries.reduce((sum, e) => sum + e.duration, 0)}
             totalEarnings={totalEarnings}
+            hiddenProjectIds={hiddenProjectIds}
+            onToggleProject={toggleProjectVisibility}
           />
         </div>
       </div>
