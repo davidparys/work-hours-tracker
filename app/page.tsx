@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Calendar, BarChart3, FileText, Settings, Database, Palette, Building2, User } from "lucide-react"
 import { getWeekDates, getMonthDates } from "@/lib/utils/date-helpers"
+import { QuickAddWidget } from "@/components/quick-add-widget"
 
 export default function HomePage() {
   const [selectedDate, setSelectedDate] = useState(new Date())
@@ -61,6 +62,7 @@ export default function HomePage() {
   const exportRange = getExportDateRange()
 
   return (
+    <>
     <div className="min-h-screen bg-background" key={refreshKey}>
       <nav className="border-b border-border/50 bg-card/50 backdrop-blur-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -157,5 +159,7 @@ export default function HomePage() {
         )}
       </main>
     </div>
+    <QuickAddWidget onDataChange={handleDataChange} />
+    </>
   )
 }
