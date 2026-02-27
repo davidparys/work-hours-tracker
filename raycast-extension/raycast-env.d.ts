@@ -17,6 +17,8 @@ declare namespace Preferences {
   export type QuickAdd = ExtensionPreferences & {}
   /** Preferences accessible in the `monthly-calendar` command */
   export type MonthlyCalendar = ExtensionPreferences & {}
+  /** Preferences accessible in the `export-pdf` command */
+  export type ExportPdf = ExtensionPreferences & {}
 }
 
 declare namespace Arguments {
@@ -24,5 +26,7 @@ declare namespace Arguments {
   export type QuickAdd = {}
   /** Arguments passed to the `monthly-calendar` command */
   export type MonthlyCalendar = {}
+  /** Arguments passed to the `export-pdf` command */
+  export type ExportPdf = {}
 }
 

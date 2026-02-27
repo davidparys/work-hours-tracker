@@ -663,8 +663,12 @@ export class PDFGenerator {
       const week = getWeekDates(currentDate, weekStartsOn)
       weeks.push(week)
 
-      // Move to next week
-      currentDate.setDate(currentDate.getDate() + 7)
+      // Advance to the day after this week's end so we don't skip weeks.
+      // Using currentDate + 7 is wrong when getWeekDates snapped back to
+      // an earlier start day (e.g. the preceding Monday), which would cause
+      // the next +7 jump to land mid-week and miss the following week row.
+      currentDate = new Date(week.end + "T00:00:00")
+      currentDate.setDate(currentDate.getDate() + 1)
     }
 
     return weeks
@@ -678,7 +682,9 @@ export class PDFGenerator {
     }
 
     const dayNames = getWeekDayHeaders(options.weekStartsOn || 'sunday')
-    const cellWidth = 25
+    // Fit 7 day columns within the full printable width (pageWidth - 2*margin)
+    const printableWidth = this.pageWidth - 2 * this.margin
+    const cellWidth = Math.floor(printableWidth / 7)
     const cellHeight = 20
     const startX = this.margin
     const startY = this.currentY
@@ -699,8 +705,12 @@ export class PDFGenerator {
     // Draw each week as a row
     for (let weekIndex = 0; weekIndex < weekDates.length; weekIndex++) {
       const week = weekDates[weekIndex]
+      // Clamp to the selected date range so entries from adjacent weeks
+      // that fall outside the user's chosen period are not counted
+      const effectiveStart = week.start < options.startDate ? options.startDate : week.start
+      const effectiveEnd = week.end > options.endDate ? options.endDate : week.end
       const weekEntries = options.entries.filter(entry =>
-        entry.date >= week.start && entry.date <= week.end
+        entry.date >= effectiveStart && entry.date <= effectiveEnd
       )
 
       const weekTotalHours = weekEntries.reduce((sum, entry) => sum + entry.duration, 0)
@@ -747,11 +757,12 @@ export class PDFGenerator {
         }
       }
 
-      // Week total on the right
-      this.doc.setFontSize(9)
+      // Week total — rendered inside the row, right-aligned within the grid
+      this.doc.setFontSize(7)
       this.doc.setTextColor(22, 78, 99)
       this.doc.setFont('helvetica', 'bold')
-      this.doc.text(`Week ${weekIndex + 1}: ${formatHours(weekTotalHours)}`, startX + (cellWidth * 7) + 10, this.currentY + 8)
+      const weekLabel = `W${getISOWeekNumber(new Date(week.start + "T00:00:00"))}: ${formatHours(weekTotalHours)}`
+      this.doc.text(weekLabel, startX + (cellWidth * 7) - 2, this.currentY + 8, { align: 'right' })
 
       this.currentY += cellHeight + 5
 
