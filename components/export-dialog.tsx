@@ -14,7 +14,7 @@ import { Badge } from "@/components/ui/badge"
 import { FileText, Download, CalendarIcon, Loader2, ChevronsUpDown } from "lucide-react"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { db, type TimeEntry, type Project, getUserSettings } from "@/lib/database"
-import { exportToPDF } from "@/lib/pdf-generator"
+import { exportToPDF, type PDFLanguage } from "@/lib/pdf-generator"
 import { formatDate, formatHours } from "@/lib/utils/date-helpers"
 import { useCurrency } from "@/lib/context/currency-context"
 import { cn } from "@/lib/utils"
@@ -32,6 +32,7 @@ export function ExportDialog({ children, defaultStartDate, defaultEndDate }: Exp
   const [startDate, setStartDate] = useState<Date>(defaultStartDate || new Date())
   const [endDate, setEndDate] = useState<Date>(defaultEndDate || new Date())
   const [exportStyle, setExportStyle] = useState<"professional" | "visual">("professional")
+  const [exportLanguage, setExportLanguage] = useState<PDFLanguage>("en")
   const [showProjects, setShowProjects] = useState(false)
   const [entries, setEntries] = useState<TimeEntry[]>([])
   const [projects, setProjects] = useState<Project[]>([])
@@ -153,6 +154,7 @@ export function ExportDialog({ children, defaultStartDate, defaultEndDate }: Exp
         showProjects,
         weekStartsOn: companySettings?.weekStartsOn || 'sunday',
         currency,
+        language: exportLanguage,
         userSettings: userSettings ? {
           firstName: userSettings.firstName,
           lastName: userSettings.lastName,
@@ -324,6 +326,21 @@ export function ExportDialog({ children, defaultStartDate, defaultEndDate }: Exp
                     <span className="text-sm text-muted-foreground">Professional per-week summary with billable amounts</span>
                   </div>
                 </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Language */}
+          <div className="space-y-2">
+            <Label>Report Language</Label>
+            <Select value={exportLanguage} onValueChange={(value: PDFLanguage) => setExportLanguage(value)}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="en">English</SelectItem>
+                <SelectItem value="fr">Français</SelectItem>
+                <SelectItem value="pl">Polski</SelectItem>
               </SelectContent>
             </Select>
           </div>

@@ -17,6 +17,12 @@
       "title": "Monthly Calendar",
       "description": "GitHub-style activity calendar with daily breakdown and filters",
       "mode": "view"
+    },
+    {
+      "name": "export-pdf",
+      "title": "Export PDF Report",
+      "description": "Export a time tracking PDF report to ~/Downloads for a project and date range",
+      "mode": "view"
     }
   ],
   "dependencies": {

@@ -3,6 +3,8 @@ import type { TimeEntry, Project } from "./database"
 import { formatHours, getWeekDates, formatDate, getWeekDayHeaders, getISOWeekNumber, formatCurrency, formatDateRange, getMonthName } from "./utils/date-helpers"
 import jsPDF from 'jspdf'
 
+export type PDFLanguage = 'en' | 'fr' | 'pl'
+
 export interface PDFExportOptions {
   startDate: string
   endDate: string
@@ -13,6 +15,7 @@ export interface PDFExportOptions {
   showProjects?: boolean
   weekStartsOn?: 'saturday' | 'sunday' | 'monday'
   currency?: string
+  language?: PDFLanguage
   userSettings?: {
     firstName: string
     lastName: string
@@ -23,22 +26,111 @@ export interface PDFExportOptions {
   }
 }
 
+const PDF_TRANSLATIONS: Record<PDFLanguage, Record<string, string>> = {
+  en: {
+    reportTitle: 'TIME TRACKING REPORT',
+    weeklyBreakdownSubtitle: 'Weekly Breakdown Summary',
+    employee: 'Employee',
+    company: 'Company',
+    period: 'Period',
+    summary: 'SUMMARY',
+    totalHours: 'Total Hours',
+    workingDays: 'Working Days',
+    avgHoursDay: 'Average Hours/Day',
+    totalEntries: 'Total Entries',
+    monthlyOverview: 'MONTHLY OVERVIEW',
+    weeklyBreakdown: 'WEEKLY BREAKDOWN',
+    weekOf: 'Week of',
+    total: 'Total',
+    projectSummary: 'PROJECT SUMMARY',
+    projectDistribution: 'PROJECT DISTRIBUTION',
+    project: 'Project',
+    hours: 'Hours',
+    billable: 'Billable',
+    totalBillable: 'Total Billable',
+    avgHoursPerDay: 'Avg Hours/Day',
+    unassigned: 'Unassigned',
+    week: 'Week',
+    generatedOn: 'Generated on',
+    at: 'at',
+  },
+  fr: {
+    reportTitle: 'RAPPORT DE SUIVI DU TEMPS',
+    weeklyBreakdownSubtitle: 'Résumé hebdomadaire',
+    employee: 'Employé',
+    company: 'Entreprise',
+    period: 'Période',
+    summary: 'RÉSUMÉ',
+    totalHours: 'Heures totales',
+    workingDays: 'Jours travaillés',
+    avgHoursDay: 'Moyenne heures/jour',
+    totalEntries: 'Total des entrées',
+    monthlyOverview: 'APERÇU MENSUEL',
+    weeklyBreakdown: 'RÉPARTITION HEBDOMADAIRE',
+    weekOf: 'Semaine du',
+    total: 'Total',
+    projectSummary: 'RÉSUMÉ PAR PROJET',
+    projectDistribution: 'RÉPARTITION PAR PROJET',
+    project: 'Projet',
+    hours: 'Heures',
+    billable: 'Facturable',
+    totalBillable: 'Total facturable',
+    avgHoursPerDay: 'Moy. heures/jour',
+    unassigned: 'Non assigné',
+    week: 'Semaine',
+    generatedOn: 'Généré le',
+    at: 'à',
+  },
+  pl: {
+    reportTitle: 'RAPORT CZASU PRACY',
+    weeklyBreakdownSubtitle: 'Podsumowanie tygodniowe',
+    employee: 'Pracownik',
+    company: 'Firma',
+    period: 'Okres',
+    summary: 'PODSUMOWANIE',
+    totalHours: 'Łączne godziny',
+    workingDays: 'Dni robocze',
+    avgHoursDay: 'Średnio godz./dzień',
+    totalEntries: 'Liczba wpisów',
+    monthlyOverview: 'PRZEGLĄD MIESIĘCZNY',
+    weeklyBreakdown: 'PODZIAŁ TYGODNIOWY',
+    weekOf: 'Tydzień od',
+    total: 'Razem',
+    projectSummary: 'PODSUMOWANIE PROJEKTÓW',
+    projectDistribution: 'PODZIAŁ NA PROJEKTY',
+    project: 'Projekt',
+    hours: 'Godziny',
+    billable: 'Do rozliczenia',
+    totalBillable: 'Łącznie do rozliczenia',
+    avgHoursPerDay: 'Śr. godz./dzień',
+    unassigned: 'Nieprzypisane',
+    week: 'Tydzień',
+    generatedOn: 'Wygenerowano',
+    at: 'o',
+  },
+}
+
 export class PDFGenerator {
   private doc: jsPDF
   private pageWidth: number
   private pageHeight: number
   private margin: number
   private currentY: number
+  private t: Record<string, string>
 
-  constructor() {
+  constructor(language: PDFLanguage = 'en') {
     this.doc = new jsPDF()
     this.pageWidth = this.doc.internal.pageSize.getWidth()
     this.pageHeight = this.doc.internal.pageSize.getHeight()
     this.margin = 20
     this.currentY = this.margin
+    this.t = PDF_TRANSLATIONS[language]
   }
 
   async generatePDF(options: PDFExportOptions): Promise<Blob> {
+    if (options.language) {
+      this.t = PDF_TRANSLATIONS[options.language]
+    }
     this.setupDocument()
 
     if (options.style === "professional") {
@@ -61,7 +153,7 @@ export class PDFGenerator {
     this.doc.setFontSize(24)
     this.doc.setTextColor(22, 78, 99) // #164e63
     this.doc.setFont('helvetica', 'bold')
-    this.doc.text('TIME TRACKING REPORT', this.margin, this.currentY)
+    this.doc.text(this.t.reportTitle, this.margin, this.currentY)
     this.currentY += 20
 
     // User and Company Information
@@ -74,14 +166,14 @@ export class PDFGenerator {
       if (options.userSettings?.firstName || options.userSettings?.lastName) {
         const fullName = `${options.userSettings.firstName || ''} ${options.userSettings.lastName || ''}`.trim()
         if (fullName) {
-          this.doc.text(`Employee: ${fullName}`, this.margin, this.currentY)
+          this.doc.text(`${this.t.employee}: ${fullName}`, this.margin, this.currentY)
           this.currentY += 12
         }
       }
 
       // Company name
       if (options.companySettings?.companyName) {
-        this.doc.text(`Company: ${options.companySettings.companyName}`, this.margin, this.currentY)
+        this.doc.text(`${this.t.company}: ${options.companySettings.companyName}`, this.margin, this.currentY)
         this.currentY += 12
       }
 
@@ -95,7 +187,7 @@ export class PDFGenerator {
     this.doc.setTextColor(71, 85, 105) // #475569
     this.doc.setFont('helvetica', 'normal')
     this.doc.text(
-      `Period: ${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`,
+      `${this.t.period}: ${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`,
       this.margin,
       this.currentY
     )
@@ -119,7 +211,7 @@ export class PDFGenerator {
     this.doc.setFontSize(16)
     this.doc.setTextColor(22, 78, 99)
     this.doc.setFont('helvetica', 'bold')
-    this.doc.text('SUMMARY', this.margin, this.currentY)
+    this.doc.text(this.t.summary, this.margin, this.currentY)
     this.currentY += 15
 
     this.doc.setFontSize(12)
@@ -127,10 +219,10 @@ export class PDFGenerator {
     this.doc.setFont('helvetica', 'normal')
 
     const summaryData = [
-      ["Total Hours:", formatHours(totalHours)],
-      ["Working Days:", workingDays.toString()],
-      ["Average Hours/Day:", formatHours(avgHoursPerDay)],
-      ["Total Entries:", options.entries.length.toString()],
+      [`${this.t.totalHours}:`, formatHours(totalHours)],
+      [`${this.t.workingDays}:`, workingDays.toString()],
+      [`${this.t.avgHoursDay}:`, formatHours(avgHoursPerDay)],
+      [`${this.t.totalEntries}:`, options.entries.length.toString()],
     ]
 
     summaryData.forEach(([label, value]) => {
@@ -156,7 +248,7 @@ export class PDFGenerator {
         this.doc.setFontSize(16)
         this.doc.setTextColor(22, 78, 99)
         this.doc.setFont('helvetica', 'bold')
-        this.doc.text('MONTHLY OVERVIEW', this.margin, this.currentY)
+        this.doc.text(this.t.monthlyOverview, this.margin, this.currentY)
         this.currentY += 20
 
         // Create monthly calendar grid
@@ -166,7 +258,7 @@ export class PDFGenerator {
         this.doc.setFontSize(16)
         this.doc.setTextColor(22, 78, 99)
         this.doc.setFont('helvetica', 'bold')
-        this.doc.text('WEEKLY BREAKDOWN', this.margin, this.currentY)
+        this.doc.text(this.t.weeklyBreakdown, this.margin, this.currentY)
         this.currentY += 20
 
         // Process single week
@@ -185,7 +277,7 @@ export class PDFGenerator {
           this.doc.setTextColor(22, 78, 99)
           this.doc.setFont('helvetica', 'bold')
           this.doc.text(
-            `Week of ${weekStartDate.toLocaleDateString()} - ${weekEndDate.toLocaleDateString()}`,
+            `${this.t.weekOf} ${weekStartDate.toLocaleDateString()} - ${weekEndDate.toLocaleDateString()}`,
             this.margin,
             this.currentY
           )
@@ -194,7 +286,7 @@ export class PDFGenerator {
           this.doc.setFontSize(12)
           this.doc.setTextColor(71, 85, 105)
           this.doc.setFont('helvetica', 'normal')
-          this.doc.text(`Total: ${formatHours(weekTotalHours)}`, this.margin + 10, this.currentY)
+          this.doc.text(`${this.t.total}: ${formatHours(weekTotalHours)}`, this.margin + 10, this.currentY)
           this.currentY += 15
 
           // Daily breakdown
@@ -261,7 +353,7 @@ export class PDFGenerator {
       this.doc.setFontSize(16)
       this.doc.setTextColor(22, 78, 99)
       this.doc.setFont('helvetica', 'bold')
-      this.doc.text('PROJECT SUMMARY', this.margin, this.currentY)
+      this.doc.text(this.t.projectSummary, this.margin, this.currentY)
       this.currentY += 20
 
       Object.entries(projectHours).forEach(([project, hours]) => {
@@ -275,7 +367,7 @@ export class PDFGenerator {
         this.doc.setFontSize(12)
         this.doc.setTextColor(71, 85, 105)
         this.doc.setFont('helvetica', 'normal')
-        this.doc.text(project || "Unassigned", this.margin, this.currentY)
+        this.doc.text(project || this.t.unassigned, this.margin, this.currentY)
         this.doc.setFont('helvetica', 'bold')
         this.doc.text(`${formatHours(hours)} (${percentage}%)`, this.margin + 120, this.currentY)
         this.currentY += 15
@@ -287,7 +379,7 @@ export class PDFGenerator {
     this.doc.setTextColor(156, 163, 175) // #9ca3af
     this.doc.setFont('helvetica', 'normal')
     this.doc.text(
-      `Generated on ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()}`,
+      `${this.t.generatedOn} ${new Date().toLocaleDateString()} ${this.t.at} ${new Date().toLocaleTimeString()}`,
       this.margin,
       this.pageHeight - 20
     )
@@ -303,12 +395,12 @@ export class PDFGenerator {
     this.doc.setFontSize(22)
     this.doc.setTextColor(255, 255, 255)
     this.doc.setFont('helvetica', 'bold')
-    this.doc.text('TIME TRACKING REPORT', this.margin, 30)
+    this.doc.text(this.t.reportTitle, this.margin, 30)
 
     this.doc.setFontSize(11)
     this.doc.setTextColor(236, 254, 255) // #ecfeff
     this.doc.setFont('helvetica', 'normal')
-    this.doc.text('Weekly Breakdown Summary', this.margin, 42)
+    this.doc.text(this.t.weeklyBreakdownSubtitle, this.margin, 42)
 
     this.currentY = 65
 
@@ -324,17 +416,17 @@ export class PDFGenerator {
     if (options.userSettings?.firstName || options.userSettings?.lastName) {
       const fullName = `${options.userSettings.firstName || ''} ${options.userSettings.lastName || ''}`.trim()
       if (fullName) {
-        this.doc.text(`Employee: ${fullName}`, infoX, this.currentY)
+        this.doc.text(`${this.t.employee}: ${fullName}`, infoX, this.currentY)
         infoX += 90
       }
     }
 
     if (options.companySettings?.companyName) {
-      this.doc.text(`Company: ${options.companySettings.companyName}`, infoX, this.currentY)
+      this.doc.text(`${this.t.company}: ${options.companySettings.companyName}`, infoX, this.currentY)
     }
 
     this.currentY += 8
-    this.doc.text(`Period: ${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`, this.margin, this.currentY)
+    this.doc.text(`${this.t.period}: ${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`, this.margin, this.currentY)
     this.currentY += 15
 
     // Calculate all statistics
@@ -359,10 +451,10 @@ export class PDFGenerator {
 
     // Summary metrics
     const summaryMetrics = [
-      { label: 'Total Hours', value: formatHours(totalHours) },
-      { label: 'Total Billable', value: formatCurrency(totalBillable, currency) },
-      { label: 'Working Days', value: workingDays.toString() },
-      { label: 'Avg Hours/Day', value: formatHours(avgHoursPerDay) },
+      { label: this.t.totalHours, value: formatHours(totalHours) },
+      { label: this.t.totalBillable, value: formatCurrency(totalBillable, currency) },
+      { label: this.t.workingDays, value: workingDays.toString() },
+      { label: this.t.avgHoursPerDay, value: formatHours(avgHoursPerDay) },
     ]
 
     summaryMetrics.forEach((metric, index) => {
@@ -389,7 +481,7 @@ export class PDFGenerator {
     this.doc.setFontSize(14)
     this.doc.setTextColor(22, 78, 99)
     this.doc.setFont('helvetica', 'bold')
-    this.doc.text('WEEKLY BREAKDOWN', this.margin, this.currentY)
+    this.doc.text(this.t.weeklyBreakdown, this.margin, this.currentY)
     this.currentY += 12
 
     // Process each month
@@ -435,7 +527,7 @@ export class PDFGenerator {
         this.doc.setFontSize(10)
         this.doc.setTextColor(51, 65, 85) // #334155
         this.doc.setFont('helvetica', 'bold')
-        this.doc.text(`Week ${week.weekNumber}`, this.margin + 8, this.currentY + 12)
+        this.doc.text(`${this.t.week} ${week.weekNumber}`, this.margin + 8, this.currentY + 12)
 
         this.doc.setFont('helvetica', 'normal')
         this.doc.setTextColor(107, 114, 128) // #6b7280
@@ -464,7 +556,7 @@ export class PDFGenerator {
             this.doc.setFontSize(9)
             this.doc.setTextColor(107, 114, 128)
             this.doc.setFont('helvetica', 'normal')
-            this.doc.text(project || "Unassigned", this.margin + 28, this.currentY + 5)
+            this.doc.text(project || this.t.unassigned, this.margin + 28, this.currentY + 5)
 
             const projectSummary = `${formatHours(data.hours)} | ${formatCurrency(data.billable, currency)}`
             this.doc.text(projectSummary, this.pageWidth - this.margin - 8, this.currentY + 5, { align: 'right' })
@@ -489,7 +581,7 @@ export class PDFGenerator {
       this.doc.setFontSize(14)
       this.doc.setTextColor(22, 78, 99)
       this.doc.setFont('helvetica', 'bold')
-      this.doc.text('PROJECT DISTRIBUTION', this.margin, this.currentY)
+      this.doc.text(this.t.projectDistribution, this.margin, this.currentY)
       this.currentY += 15
 
       // Table header
@@ -499,9 +591,9 @@ export class PDFGenerator {
       this.doc.setFontSize(9)
       this.doc.setTextColor(71, 85, 105)
       this.doc.setFont('helvetica', 'bold')
-      this.doc.text('Project', this.margin + 20, this.currentY + 10)
-      this.doc.text('Hours', this.margin + 100, this.currentY + 10)
-      this.doc.text('Billable', this.margin + 135, this.currentY + 10)
+      this.doc.text(this.t.project, this.margin + 20, this.currentY + 10)
+      this.doc.text(this.t.hours, this.margin + 100, this.currentY + 10)
+      this.doc.text(this.t.billable, this.margin + 135, this.currentY + 10)
       this.doc.text('%', this.pageWidth - this.margin - 15, this.currentY + 10, { align: 'right' })
 
       this.currentY += 18
@@ -520,7 +612,7 @@ export class PDFGenerator {
         this.doc.setFontSize(10)
         this.doc.setTextColor(51, 65, 85)
         this.doc.setFont('helvetica', 'normal')
-        this.doc.text(project || "Unassigned", this.margin + 20, this.currentY)
+        this.doc.text(project || this.t.unassigned, this.margin + 20, this.currentY)
         this.doc.text(formatHours(data.hours), this.margin + 100, this.currentY)
         this.doc.text(formatCurrency(data.billable, currency), this.margin + 135, this.currentY)
 
@@ -551,7 +643,7 @@ export class PDFGenerator {
     this.doc.setTextColor(156, 163, 175)
     this.doc.setFont('helvetica', 'normal')
     this.doc.text(
-      `Generated on ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()}`,
+      `${this.t.generatedOn} ${new Date().toLocaleDateString()} ${this.t.at} ${new Date().toLocaleTimeString()}`,
       this.margin,
       this.pageHeight - 15
     )
@@ -663,8 +755,12 @@ export class PDFGenerator {
       const week = getWeekDates(currentDate, weekStartsOn)
       weeks.push(week)
 
-      // Move to next week
-      currentDate.setDate(currentDate.getDate() + 7)
+      // Advance to the day after this week's end so we don't skip weeks.
+      // Using currentDate + 7 is wrong when getWeekDates snapped back to
+      // an earlier start day (e.g. the preceding Monday), which would cause
+      // the next +7 jump to land mid-week and miss the following week row.
+      currentDate = new Date(week.end + "T00:00:00")
+      currentDate.setDate(currentDate.getDate() + 1)
     }
 
     return weeks
@@ -678,7 +774,9 @@ export class PDFGenerator {
     }
 
     const dayNames = getWeekDayHeaders(options.weekStartsOn || 'sunday')
-    const cellWidth = 25
+    // Fit 7 day columns within the full printable width (pageWidth - 2*margin)
+    const printableWidth = this.pageWidth - 2 * this.margin
+    const cellWidth = Math.floor(printableWidth / 7)
     const cellHeight = 20
     const startX = this.margin
     const startY = this.currentY
@@ -699,8 +797,12 @@ export class PDFGenerator {
     // Draw each week as a row
     for (let weekIndex = 0; weekIndex < weekDates.length; weekIndex++) {
       const week = weekDates[weekIndex]
+      // Clamp to the selected date range so entries from adjacent weeks
+      // that fall outside the user's chosen period are not counted
+      const effectiveStart = week.start < options.startDate ? options.startDate : week.start
+      const effectiveEnd = week.end > options.endDate ? options.endDate : week.end
       const weekEntries = options.entries.filter(entry =>
-        entry.date >= week.start && entry.date <= week.end
+        entry.date >= effectiveStart && entry.date <= effectiveEnd
       )
 
       const weekTotalHours = weekEntries.reduce((sum, entry) => sum + entry.duration, 0)
@@ -747,11 +849,12 @@ export class PDFGenerator {
         }
       }
 
-      // Week total on the right
-      this.doc.setFontSize(9)
+      // Week total — rendered inside the row, right-aligned within the grid
+      this.doc.setFontSize(7)
       this.doc.setTextColor(22, 78, 99)
       this.doc.setFont('helvetica', 'bold')
-      this.doc.text(`Week ${weekIndex + 1}: ${formatHours(weekTotalHours)}`, startX + (cellWidth * 7) + 10, this.currentY + 8)
+      const weekLabel = `${this.t.week[0]}${getISOWeekNumber(new Date(week.start + "T00:00:00"))}: ${formatHours(weekTotalHours)}`
+      this.doc.text(weekLabel, startX + (cellWidth * 7) - 2, this.currentY + 8, { align: 'right' })
 
       this.currentY += cellHeight + 5
 
@@ -837,7 +940,7 @@ export class PDFGenerator {
 
 // Export functions
 export async function exportToPDF(options: PDFExportOptions): Promise<void> {
-  const generator = new PDFGenerator()
+  const generator = new PDFGenerator(options.language || 'en')
   const pdfBlob = await generator.generatePDF(options)
 
   // Create download link
