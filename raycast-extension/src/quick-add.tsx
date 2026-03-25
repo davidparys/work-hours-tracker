@@ -30,6 +30,7 @@ function formatHourLabel(h: number): string {
 }
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i)
+const DURATIONS = [0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5, 5.5, 6, 6.5, 7, 7.5, 8, 9, 10, 11, 12]
 
 export default function QuickAdd() {
   const [projects, setProjects] = useState<Project[]>([])
@@ -41,10 +42,10 @@ export default function QuickAdd() {
   const [projectId, setProjectId] = useState<string>("")
   const [date, setDate] = useState<Date>(new Date())
   const [startHour, setStartHour] = useState("9")
-  const [endHour, setEndHour] = useState("10")
+  const [duration, setDuration] = useState("1")
   const [billableRate, setBillableRate] = useState<string>("")
   const [description, setDescription] = useState("")
-  const [endHourError, setEndHourError] = useState<string | undefined>()
+  const [durationError, setDurationError] = useState<string | undefined>()
   const [billableRateError, setBillableRateError] = useState<string | undefined>()
   const [submitting, setSubmitting] = useState(false)
 
@@ -94,9 +95,10 @@ export default function QuickAdd() {
     setBillableRate(defaultBillableRate != null ? String(defaultBillableRate) : "")
   }
 
-  function validateEndHour(end: string, start: string): string | undefined {
-    if (Number(end) <= Number(start)) {
-      return "End time must be after start time"
+  function validateDuration(dur: string, start: string): string | undefined {
+    const endHour = Number(start) + Number(dur)
+    if (endHour > 24) {
+      return `End time would be ${endHour}:00, exceeds 24:00`
     }
     return undefined
   }
@@ -109,19 +111,19 @@ export default function QuickAdd() {
   }
 
   async function handleSubmit() {
-    const endErr = validateEndHour(endHour, startHour)
+    const durErr = validateDuration(duration, startHour)
     const rateErr = validateBillableRate(billableRate)
-    if (endErr) setEndHourError(endErr)
+    if (durErr) setDurationError(durErr)
     if (rateErr) setBillableRateError(rateErr)
-    if (endErr || rateErr) return
+    if (durErr || rateErr) return
 
-    setEndHourError(undefined)
+    setDurationError(undefined)
     setBillableRateError(undefined)
     setSubmitting(true)
 
     const start = Number(startHour)
-    const end = Number(endHour)
-    const duration = end - start
+    const dur = Number(duration)
+    const end = start + dur
 
     const d = date || new Date()
     const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
@@ -132,7 +134,7 @@ export default function QuickAdd() {
       date: dateStr,
       startHour: start,
       endHour: end,
-      duration,
+      duration: dur,
       projectId: projectId ? Number(projectId) : null,
       billableRate: resolvedRate,
       description: description || undefined,
@@ -153,7 +155,7 @@ export default function QuickAdd() {
       await showToast({
         style: Toast.Style.Success,
         title: "Entry added",
-        message: `${duration}h logged${resolvedRate != null ? ` @ ${resolvedRate}/hr` : ""}`,
+        message: `${dur}h logged (${formatHourLabel(start)}–${formatHourLabel(end)})${resolvedRate != null ? ` @ ${resolvedRate}/hr` : ""}`,
       })
       await popToRoot()
     } catch (err: any) {
@@ -217,7 +219,7 @@ export default function QuickAdd() {
         value={startHour}
         onChange={(v) => {
           setStartHour(v)
-          setEndHourError(validateEndHour(endHour, v))
+          setDurationError(validateDuration(duration, v))
         }}
       >
         {HOURS.map((h) => (
@@ -226,17 +228,21 @@ export default function QuickAdd() {
       </Form.Dropdown>
 
       <Form.Dropdown
-        id="endHour"
-        title="End Time"
-        value={endHour}
-        error={endHourError}
+        id="duration"
+        title="Duration (hours)"
+        value={duration}
+        error={durationError}
         onChange={(v) => {
-          setEndHour(v)
-          setEndHourError(validateEndHour(v, startHour))
+          setDuration(v)
+          setDurationError(validateDuration(v, startHour))
         }}
       >
-        {HOURS.map((h) => (
-          <Form.Dropdown.Item key={h} value={String(h)} title={formatHourLabel(h)} />
+        {DURATIONS.map((d) => (
+          <Form.Dropdown.Item
+            key={d}
+            value={String(d)}
+            title={`${d}h → ends ${formatHourLabel(Number(startHour) + d)}`}
+          />
         ))}
       </Form.Dropdown>
 
