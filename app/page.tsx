@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { useRouter, useSearchParams, usePathname } from "next/navigation"
 import { DayView } from "@/components/day-view"
 import { WeekView } from "@/components/week-view"
 import { MonthView } from "@/components/month-view"
@@ -21,9 +22,30 @@ import { Calendar, BarChart3, FileText, Settings, Database, Palette, Building2, 
 import { getWeekDates, getMonthDates } from "@/lib/utils/date-helpers"
 import { QuickAddWidget } from "@/components/quick-add-widget"
 
+type View = "day" | "week" | "month"
+
+const isView = (v: string | null): v is View => v === "day" || v === "week" || v === "month"
+
 export default function HomePage() {
+  const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
+
+  const viewParam = searchParams.get("view")
+  const currentView: View = isView(viewParam) ? viewParam : "day"
+
+  const setCurrentView = (view: View) => {
+    const params = new URLSearchParams(searchParams.toString())
+    if (view === "day") {
+      params.delete("view")
+    } else {
+      params.set("view", view)
+    }
+    const query = params.toString()
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false })
+  }
+
   const [selectedDate, setSelectedDate] = useState(new Date())
-  const [currentView, setCurrentView] = useState<"day" | "week" | "month">("day")
   const [refreshKey, setRefreshKey] = useState(0)
 
   const handleDayClick = (date: Date) => {
