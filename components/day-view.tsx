@@ -594,7 +594,7 @@ export function DayView({ selectedDate, onDateChange }: DayViewProps) {
                   </div>
                   {newEntry.projectId && projects.find((p) => p.id === newEntry.projectId)?.defaultBillableRate != null ? (
                     <p className="text-xs text-muted-foreground mt-1">
-                      Project rate: {formatCurrency(projects.find((p) => p.id === newEntry.projectId)!.defaultBillableRate!, currency)}/hr
+                      Project rate: {formatAmount(projects.find((p) => p.id === newEntry.projectId)!.defaultBillableRate!)}/hr
                     </p>
                   ) : defaultBillableRate ? (
                     <p className="text-xs text-muted-foreground mt-1">
