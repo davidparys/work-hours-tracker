@@ -8,7 +8,6 @@ import {
   Icon,
 } from "@raycast/api"
 import { useState, useEffect } from "react"
-import * as chrono from "chrono-node"
 
 const API_BASE = "http://localhost:1337"
 
@@ -42,8 +41,6 @@ export default function QuickAdd() {
   // Form state
   const [projectId, setProjectId] = useState<string>("")
   const [date, setDate] = useState<Date>(new Date())
-  const [dateText, setDateText] = useState<string>("")
-  const [dateError, setDateError] = useState<string | undefined>()
   const [startHour, setStartHour] = useState("9")
   const [duration, setDuration] = useState("1")
   const [billableRate, setBillableRate] = useState<string>("")
@@ -113,39 +110,12 @@ export default function QuickAdd() {
     return undefined
   }
 
-  function parseDateInput(text: string): Date | null {
-    if (text.trim() === "") return new Date()
-    // Use "past" forward date option — prefer dates in the past over future
-    // so "8th April" resolves to the most recent April 8th, not next year
-    const parsed = chrono.parseDate(text, new Date(), { forwardDate: false })
-    return parsed
-  }
-
-  function handleDateChange(text: string) {
-    setDateText(text)
-    if (text.trim() === "") {
-      setDate(new Date())
-      setDateError(undefined)
-      return
-    }
-    const parsed = parseDateInput(text)
-    if (parsed) {
-      setDate(parsed)
-      setDateError(undefined)
-    } else {
-      setDateError("Couldn't parse date — try 'today', 'yesterday', '8 April', or '2026-04-08'")
-    }
-  }
-
   async function handleSubmit() {
     const durErr = validateDuration(duration, startHour)
     const rateErr = validateBillableRate(billableRate)
-    const parsedDate = dateText.trim() === "" ? new Date() : parseDateInput(dateText)
-    const dateErr = parsedDate ? undefined : "Couldn't parse date"
     if (durErr) setDurationError(durErr)
     if (rateErr) setBillableRateError(rateErr)
-    if (dateErr) setDateError(dateErr)
-    if (durErr || rateErr || dateErr) return
+    if (durErr || rateErr) return
 
     setDurationError(undefined)
     setBillableRateError(undefined)
@@ -235,14 +205,14 @@ export default function QuickAdd() {
         ))}
       </Form.Dropdown>
 
-      <Form.TextField
-        id="dateText"
+      <Form.DatePicker
+        id="date"
         title="Date"
-        placeholder={`today, yesterday, 8 April, ${new Date().getFullYear()}-04-08`}
-        value={dateText}
-        error={dateError}
-        info={date ? `→ ${date.toLocaleDateString(undefined, { weekday: "short", year: "numeric", month: "short", day: "numeric" })}` : undefined}
-        onChange={handleDateChange}
+        value={date}
+        type={Form.DatePicker.Type.Date}
+        onChange={(newDate) => {
+          if (newDate) setDate(newDate)
+        }}
       />
 
       <Form.Dropdown
